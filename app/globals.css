@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+  --font-heading: var(--font-display);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+}
+
+:root {
+  --background: #ebe3d2;
+  --foreground: #241c16;
+  --card: #f7f1e4;
+  --card-foreground: #241c16;
+  --primary: #8e2a1c;
+  --primary-foreground: #fbf6ec;
+  --secondary: #e7dcc4;
+  --secondary-foreground: #241c16;
+  --muted: #efe6d4;
+  --muted-foreground: #6b5e50;
+  --accent: #1e4f86;
+  --accent-foreground: #f4efe4;
+  --destructive: #9d2c1c;
+  --border: #d5c6aa;
+  --input: #e5d8bf;
+  --ring: #a9793a;
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+.desk {
+  background:
+    radial-gradient(900px 420px at 0% -10%, rgba(169, 121, 58, 0.16), transparent 55%),
+    radial-gradient(700px 380px at 100% 0%, rgba(30, 79, 134, 0.08), transparent 50%),
+    var(--background);
+}
+
+.sheet {
+  background-color: #fbf6ec;
+  background-image: linear-gradient(
+    90deg,
+    transparent 2.15rem,
+    #e7b2a8 2.15rem,
+    #e7b2a8 2.24rem,
+    transparent 2.24rem
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.trit-pos {
+  color: #1e6a45;
+}
+
+.trit-neg {
+  color: #9d2c1c;
+}
+
+.trit-zero {
+  color: #8d7d69;
+}
+
+.cell-wm {
+  box-shadow: inset 0 -2px 0 #9d2c1c;
+}
+
+.lamp {
+  display: inline-flex;
+  height: 1.15rem;
+  min-width: 1.15rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid #cbbba4;
+  font-family: var(--font-code), ui-monospace, monospace;
+  font-size: 9px;
+  line-height: 1;
+  color: #8a7b68;
+}
+
+.lamp-hot {
+  border-color: transparent;
+  background: #c4551a;
+  color: #fff8ee;
+  box-shadow: 0 0 0 2px rgba(196, 85, 26, 0.25);
+}
+
+.lamp-bi {
+  border-color: transparent;
+  background: #1e4f86;
+  color: #f4f7fb;
+}
+
+.lamp-quin {
+  border-color: transparent;
+  background: #1e6a45;
+  color: #f3faf6;
+}
