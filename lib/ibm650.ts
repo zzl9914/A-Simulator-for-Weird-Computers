@@ -93,16 +93,16 @@ const OPS: Record<OpName, { code: number; title: string; kind: OpKind }> = {
   RD: { code: 70, title: "读一张卡片", kind: "data" },
   PCH: { code: 71, title: "穿一张卡片", kind: "data" },
   TLU: { code: 84, title: "查表", kind: "data" },
-  BRD10: { code: 90, title: "分配器第 10 位是 8", kind: "branch" },
-  BRD1: { code: 91, title: "分配器第 1 位是 8", kind: "branch" },
-  BRD2: { code: 92, title: "分配器第 2 位是 8", kind: "branch" },
-  BRD3: { code: 93, title: "分配器第 3 位是 8", kind: "branch" },
-  BRD4: { code: 94, title: "分配器第 4 位是 8", kind: "branch" },
-  BRD5: { code: 95, title: "分配器第 5 位是 8", kind: "branch" },
-  BRD6: { code: 96, title: "分配器第 6 位是 8", kind: "branch" },
-  BRD7: { code: 97, title: "分配器第 7 位是 8", kind: "branch" },
-  BRD8: { code: 98, title: "分配器第 8 位是 8", kind: "branch" },
-  BRD9: { code: 99, title: "分配器第 9 位是 8", kind: "branch" },
+  BRD10: { code: 90, title: "分配器第 10 位测 8 或 9", kind: "branch" },
+  BRD1: { code: 91, title: "分配器第 1 位测 8 或 9", kind: "branch" },
+  BRD2: { code: 92, title: "分配器第 2 位测 8 或 9", kind: "branch" },
+  BRD3: { code: 93, title: "分配器第 3 位测 8 或 9", kind: "branch" },
+  BRD4: { code: 94, title: "分配器第 4 位测 8 或 9", kind: "branch" },
+  BRD5: { code: 95, title: "分配器第 5 位测 8 或 9", kind: "branch" },
+  BRD6: { code: 96, title: "分配器第 6 位测 8 或 9", kind: "branch" },
+  BRD7: { code: 97, title: "分配器第 7 位测 8 或 9", kind: "branch" },
+  BRD8: { code: 98, title: "分配器第 8 位测 8 或 9", kind: "branch" },
+  BRD9: { code: 99, title: "分配器第 9 位测 8 或 9", kind: "branch" },
 };
 
 const ALIASES: Record<string, OpName> = { BRMIN: "BMI", AL: "ALO", SL: "SLO", LD: "LDD", NOOP: "NOP" };
@@ -161,7 +161,7 @@ export function decodeInstruction(word: Word): { op: number; data: number; next:
 function parseSigned(token: string, line: number): Word {
   if (!/^[+-]?\d+$/.test(token)) throw new MachineFault(`第 ${line} 行：${token} 不是十进制数`);
   const negative = token.startsWith("-");
-  const digitsText = token.replace(/^[+-]/, "");
+  const digitsText = token.replace(/^[+-]/, "").replace(/^0+/, "") || "0";
   if (digitsText.length > WIDTH) throw new MachineFault(`第 ${line} 行：超过十位`);
   const digits = Array.from({ length: WIDTH }, () => 0);
   for (let i = 0; i < digitsText.length; i += 1) {
@@ -675,10 +675,14 @@ export function step650(state: IbmState): IbmState {
       }
     } else if (OPS[op].kind === "branch") {
       const upperZero = isZero(acc.mag.slice(10));
-      // 原机操作码的个位就是位号，0 表示第 10 位。91 看个位，99 看第 9 位，只认数字 8。
+      // 原机：操作码个位就是位号，0 表示第 10 位。8 去数据地址，9 去指令地址，其他数字停机。
       const units = decoded.op % 10;
       const place = units === 0 ? 9 : units - 1;
       const digit = op.startsWith("BRD") ? distributor.digits[place] : 0;
+      if (op.startsWith("BRD") && digit !== 8 && digit !== 9) {
+        const position = units === 0 ? 10 : units;
+        throw new MachineFault(`分配器第 ${position} 位是 ${digit}，不是 8 或 9。原机会停机。`);
+      }
       const taken =
         op === "BMI"
           ? acc.sign < 0

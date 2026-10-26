@@ -59,6 +59,9 @@ Word parseSigned(const std::string& token, int line, std::string& error) {
   }
   bool negative = token[0] == '-';
   std::string digits = (token[0] == '+' || token[0] == '-') ? token.substr(1) : token;
+  size_t first = 0;
+  while (first + 1 < digits.size() && digits[first] == '0') ++first;
+  digits = digits.substr(first);
   if (digits.size() > kWidth) {
     error = "第 " + std::to_string(line) + " 行：超过十位";
     return {};

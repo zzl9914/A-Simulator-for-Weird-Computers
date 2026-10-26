@@ -182,6 +182,15 @@ N       DEC +9
 `,
       "NO",
     );
+    const bad = run(`
+        LDD N
+        BRD1 YES, NO
+NO      STOP
+YES     STOP
+N       DEC +7
+`);
+    expect(bad.state.error).toMatch(/不是 8 或 9/);
+    expect(bad.state.halted).toBe(true);
     goes(
       `
         LDD N
@@ -212,5 +221,32 @@ ONE     DEC +1
     const { state } = run(source);
     expect(state.error).toBeUndefined();
     expect(accValue(state.acc)).toBe(10_000_000_000);
+  });
+
+  it("前导 0 不计入十位", () => {
+    const padded = assemble650(`
+        STOP
+N       DEC +00000000005
+Z       DEC -00000000000
+`);
+    expect(padded.ok).toBe(true);
+    if (!padded.ok) return;
+    expect(wordValue(padded.program.mem[padded.program.labels.N])).toBe(5);
+    expect(padded.program.mem[padded.program.labels.Z].digits.every((digit) => digit === 0)).toBe(true);
+    expect(padded.program.mem[padded.program.labels.Z].sign).toBe(-1);
+
+    const tooBig = assemble650(`
+        STOP
+N       DEC +10000000000
+`);
+    expect(tooBig.ok).toBe(false);
+    if (tooBig.ok) return;
+    expect(tooBig.errors.some((error) => error.message.includes("超过十位"))).toBe(true);
+
+    const paddedTooBig = assemble650(`
+        STOP
+N       DEC +0010000000000
+`);
+    expect(paddedTooBig.ok).toBe(false);
   });
 });

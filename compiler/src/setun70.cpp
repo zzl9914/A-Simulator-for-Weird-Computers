@@ -316,6 +316,15 @@ Json assembleSetun70(const std::string& source) {
   std::vector<std::string> notes(kRamSlots);
   std::vector<int> addrToLine(kRamSlots, -1);
   int windows[3] = {0, 1, 2};
+  for (const auto& stmt : stmts) {
+    if (stmt.kind == StmtKind::win) windows[stmt.window] = stmt.page;
+  }
+  auto windowFor = [&](int page) -> std::optional<int> {
+    for (int window = 0; window < 3; ++window) {
+      if (windows[window] == page) return window;
+    }
+    return std::nullopt;
+  };
   int poolTop[kRamPages];
   for (int i = 0; i < kRamPages; ++i) poolTop[i] = kPage;
   int cursor = 0;
@@ -360,10 +369,7 @@ Json assembleSetun70(const std::string& source) {
       cursor = stmt.page * kPage;
       continue;
     }
-    if (stmt.kind == StmtKind::win) {
-      windows[stmt.window] = stmt.page;
-      continue;
-    }
+    if (stmt.kind == StmtKind::win) continue;
     if (stmt.kind == StmtKind::word) {
       if (stmt.label) {
         if (!validLabel(*stmt.label)) errors.emplace_back(stmt.line, "标号 " + *stmt.label + " 不合法");
@@ -387,7 +393,9 @@ Json assembleSetun70(const std::string& source) {
       continue;
     }
     if (stmt.kind == StmtKind::imm) {
-      auto slot = allocPool(pageOf(cursor), stmt.line);
+      int page = pageOf(cursor);
+      auto window = windowFor(page);
+      auto slot = allocPool(page, stmt.line);
       if (!slot) continue;
       writeValue(mem, *slot, stmt.value);
       notes[*slot] = "字面量 " + std::to_string(stmt.value);
@@ -396,7 +404,11 @@ Json assembleSetun70(const std::string& source) {
       addrToLine[*slot] = stmt.line;
       if (!entry) entry = cursor;
       noteCode(stmt);
-      occupy(cursor, addressTryte(0, *slot % kPage, true), "取字面量 " + std::to_string(stmt.value), stmt.line);
+      if (!window) {
+        errors.emplace_back(stmt.line, "第 " + std::to_string(page) + " 页没有窗口打开，字面量取不到");
+      } else {
+        occupy(cursor, addressTryte(*window, *slot % kPage, true), "取字面量 " + std::to_string(stmt.value) + "（窗口 " + std::to_string(*window) + "）", stmt.line);
+      }
       cursor += 1;
       continue;
     }

@@ -60,6 +60,49 @@ A:      WORD 7
     expect(state.windows[1]).toBe(2);
   });
 
+  it("字面量跟着当前页的窗口，不固定走窗口 0", () => {
+    const home = runSource(`
+        6
+        .
+        HALT
+`);
+    expect(home.state.output).toEqual([6]);
+    expect(home.program.mem[home.program.entry][1]).toBe(-1);
+
+    const next = runSource(`
+        PAGE 1
+        20
+        22
+        +
+        .
+        HALT
+`);
+    expect(next.state.error).toBeUndefined();
+    expect(next.state.output).toEqual([42]);
+    expect(Math.floor(next.program.entry / 81)).toBe(1);
+    expect(next.program.mem[next.program.entry][1]).toBe(0);
+
+    const moved = runSource(`
+        PAGE 3
+        4
+        .
+        HALT
+        WIN 0 3
+`);
+    expect(moved.state.output).toEqual([4]);
+    expect(moved.program.windows[0]).toBe(3);
+    expect(moved.program.mem[moved.program.entry][1]).toBe(-1);
+
+    const closed = assemblePostfix(`
+        PAGE 4
+        1
+        .
+        HALT
+`);
+    expect(closed.ok).toBe(false);
+    if (!closed.ok) expect(closed.errors.some((error) => error.message.includes("没有窗口"))).toBe(true);
+  });
+
   it("右移 −2 舍入成 −1，而不是向零截成 0", () => {
     const source = `
         @0 N

@@ -82,6 +82,15 @@ HERE    H
     expect(normalize(cxx("setun70", source))).toEqual(normalize(assemblePostfix(source)));
   });
 
+  it("650 前导 0 不计入十位", () => {
+    const source = `
+        STOP
+N       DEC +00000000005
+M       DEC +10000000000
+`;
+    expect(normalize(cxx("ibm650", source))).toEqual(normalize(assemble650(source)));
+  });
+
   it("超长数字让汇编器报错，而不是崩溃", () => {
     const source = `        ORG ${"9".repeat(40)}\n        HLT\n`;
     expect(normalize(cxx("setun", source))).toEqual(normalize(assembleSetun(source)));

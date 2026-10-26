@@ -325,6 +325,15 @@ export function assemblePostfix(
   const notes = Array.from({ length: RAM_SLOTS }, () => "");
   const addrToLine = Array.from({ length: RAM_SLOTS }, () => -1);
   const windows: [number, number, number] = [0, 1, 2];
+  for (const stmt of stmts) {
+    if (stmt.kind === "win") windows[stmt.window as 0 | 1 | 2] = stmt.page;
+  }
+  const windowFor = (page: number) => {
+    for (let window = 0; window < windows.length; window += 1) {
+      if (windows[window] === page) return window;
+    }
+    return null;
+  };
   const poolTop = Array.from({ length: RAM_PAGES }, () => PAGE_SLOTS);
   const callPatches: { addr: number; label: string; line: number }[] = [];
   let cursor = 0;
@@ -368,10 +377,7 @@ export function assemblePostfix(
       cursor = stmt.page * PAGE_SLOTS;
       continue;
     }
-    if (stmt.kind === "win") {
-      windows[stmt.window as 0 | 1 | 2] = stmt.page;
-      continue;
-    }
+    if (stmt.kind === "win") continue;
     if (stmt.kind === "word") {
       if (stmt.label) {
         if (!/^[A-Z_][A-Z0-9_]*$/.test(stmt.label)) errors.push({ line: stmt.line, message: `标号 ${stmt.label} 不合法` });
@@ -394,7 +400,9 @@ export function assemblePostfix(
       continue;
     }
     if (stmt.kind === "imm") {
-      const slot = allocPool(pageOf(cursor), stmt.line);
+      const page = pageOf(cursor);
+      const window = windowFor(page);
+      const slot = allocPool(page, stmt.line);
       if (slot === null) continue;
       writeValue(mem, slot, stmt.value);
       notes[slot] = `字面量 ${stmt.value}`;
@@ -403,7 +411,11 @@ export function assemblePostfix(
       addrToLine[slot] = stmt.line;
       if (entry === null) entry = cursor;
       remember(stmt.at, stmt.line);
-      occupy(cursor, addressTryte(0, slot % PAGE_SLOTS, "value"), `取字面量 ${stmt.value}`, stmt.line);
+      if (window === null) {
+        errors.push({ line: stmt.line, message: `第 ${page} 页没有窗口打开，字面量取不到` });
+      } else {
+        occupy(cursor, addressTryte(window, slot % PAGE_SLOTS, "value"), `取字面量 ${stmt.value}（窗口 ${window}）`, stmt.line);
+      }
       cursor += 1;
       continue;
     }
