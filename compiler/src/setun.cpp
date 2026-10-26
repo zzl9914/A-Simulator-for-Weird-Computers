@@ -108,7 +108,8 @@ std::optional<int> parseZoneOperand(const std::string& text, int line, std::vect
     return std::nullopt;
   }
   std::string ramText = normalized.substr(colon + 1);
-  int drum = std::stoi(normalized.substr(0, colon));
+  auto drumValue = tryParseInteger(normalized.substr(0, colon));
+  int drum = drumValue && *drumValue >= 0 && *drumValue < kDrumZones ? static_cast<int>(*drumValue) : kDrumZones;
   int ramSign = 99;
   if (ramText == "+1" || ramText == "1") ramSign = 1;
   else if (ramText == "0") ramSign = 0;
@@ -188,9 +189,9 @@ Json assembleSetun(const std::string& source) {
       if (cursor + 1 >= tokens.size() || !isDecimal(tokens[cursor + 1]) || tokens[cursor + 1][0] == '+' || tokens[cursor + 1][0] == '-') {
         errors.emplace_back(line, "ORG 地址要在 0 到 161 之间");
       } else {
-        int addr = std::stoi(tokens[cursor + 1]);
-        if (addr < 0 || addr >= kWords) errors.emplace_back(line, "ORG 地址要在 0 到 161 之间");
-        else items.push_back(Item{ItemKind::org, addr, std::nullopt, {}, "", "", std::nullopt, 0, line});
+        auto parsed = tryParseInteger(tokens[cursor + 1]);
+        if (!parsed || *parsed < 0 || *parsed >= kWords) errors.emplace_back(line, "ORG 地址要在 0 到 161 之间");
+        else items.push_back(Item{ItemKind::org, static_cast<int>(*parsed), std::nullopt, {}, "", "", std::nullopt, 0, line});
       }
       continue;
     }
@@ -214,8 +215,13 @@ Json assembleSetun(const std::string& source) {
       continue;
     }
     if (head == "TAPE") {
-      if (cursor + 1 >= tokens.size() || !isDecimal(tokens[cursor + 1])) errors.emplace_back(line, "TAPE 后面要有一个整数");
-      else input.push_back(std::stoll(tokens[cursor + 1]));
+      if (cursor + 1 >= tokens.size() || !isDecimal(tokens[cursor + 1])) {
+        errors.emplace_back(line, "TAPE 后面要有一个整数");
+      } else {
+        auto parsed = tryParseInteger(tokens[cursor + 1]);
+        if (!parsed) errors.emplace_back(line, "TAPE 后面要有一个放得下的整数");
+        else input.push_back(*parsed);
+      }
       continue;
     }
     const OpSpec* op = findOp(head);
@@ -310,7 +316,12 @@ Json assembleSetun(const std::string& source) {
       address = *packed;
     } else if (item.operand) {
       if (isDecimal(*item.operand) && (*item.operand)[0] != '+' && (*item.operand)[0] != '-') {
-        address = std::stoi(*item.operand);
+        auto parsed = tryParseInteger(*item.operand);
+        if (!parsed || *parsed < 0 || *parsed >= kWords) {
+          errors.emplace_back(item.line, "地址 " + *item.operand + " 超出快存");
+          continue;
+        }
+        address = static_cast<int>(*parsed);
       } else if (labelIndex.count(*item.operand)) {
         address = labelIndex[*item.operand];
       } else {

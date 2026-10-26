@@ -44,6 +44,22 @@ describe("Сетунь-70", () => {
     expect(state.lastDrum).toBe(1);
   });
 
+  it("第 1 个窗口停在 WIN 指定的页，不会每步拨回程序页", () => {
+    const source = `
+        WIN 1 2
+        PAGE 0
+        @1 A
+        .
+        HALT
+        PAGE 2
+A:      WORD 7
+`;
+    const { state } = runSource(source);
+    expect(state.error).toBeUndefined();
+    expect(state.output).toEqual([7]);
+    expect(state.windows[1]).toBe(2);
+  });
+
   it("右移 −2 舍入成 −1，而不是向零截成 0", () => {
     const source = `
         @0 N

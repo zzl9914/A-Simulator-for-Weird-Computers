@@ -29,6 +29,7 @@ std::vector<std::string> splitWs(const std::string& text);
 std::string upperAscii(std::string text);
 bool isIdent(const std::string& text);
 bool isDecimal(const std::string& text);
+std::optional<long long> tryParseInteger(const std::string& text);
 Json errorResult(const std::vector<std::pair<int, std::string>>& errors);
 Json linesJson(const std::vector<std::string>& lines);
 Json labelsJson(const std::vector<std::pair<std::string, long long>>& labels);

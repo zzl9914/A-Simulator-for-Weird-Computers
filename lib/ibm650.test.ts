@@ -98,6 +98,73 @@ R       DEC +0
     expect(wordValue(state.mem[program.labels.R])).toBe(-3);
   });
 
+  it("余数符号跟被除数，不跟商", () => {
+    const source = `
+        RAL N
+        DIV D
+        STL Q
+        STU R
+        STOP
+N       DEC -15
+D       DEC -7
+Q       DEC +0
+R       DEC +0
+`;
+    const { program, state } = run(source);
+    expect(state.error).toBeUndefined();
+    expect(wordValue(state.mem[program.labels.Q])).toBe(2);
+    expect(state.mem[program.labels.Q].sign).toBe(1);
+    expect(wordValue(state.mem[program.labels.R])).toBe(-1);
+    expect(state.mem[program.labels.R].sign).toBe(-1);
+  });
+
+  it("商的低十位是零但溢出时，不当成正零", () => {
+    const source = `
+        RAU NEG
+        DIV ONE
+        STL Q
+        STOP
+NEG     DEC -1
+ONE     DEC +1
+Q       DEC +0
+`;
+    const { program, state } = run(source);
+    expect(state.error).toBeUndefined();
+    expect(state.overflow).toBe(true);
+    expect(state.mem[program.labels.Q].digits.every((digit) => digit === 0)).toBe(true);
+    expect(state.mem[program.labels.Q].sign).toBe(-1);
+  });
+
+  it("BRD10 看最高位，BRD1 看个位", () => {
+    const high = `
+        LDD N
+        BRD10 YES, NO
+NO      STOP
+YES     STOP
+N       DEC +8000000000
+`;
+    const low = `
+        LDD N
+        BRD1 YES, NO
+NO      STOP
+YES     STOP
+N       DEC +9
+`;
+    const highRun = run(high);
+    const lowRun = run(low);
+    expect(highRun.state.halted).toBe(true);
+    expect(highRun.state.pc).toBe(highRun.program.labels.YES);
+    expect(lowRun.state.pc).toBe(lowRun.program.labels.YES);
+    const missed = run(`
+        LDD N
+        BRD10 YES, NO
+NO      STOP
+YES     STOP
+N       DEC +9
+`);
+    expect(missed.state.pc).toBe(missed.program.labels.NO);
+  });
+
   it("下半加一会进位到上半", () => {
     const source = `
         RAL NINES

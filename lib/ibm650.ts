@@ -675,8 +675,9 @@ export function step650(state: IbmState): IbmState {
       }
     } else if (OPS[op].kind === "branch") {
       const upperZero = isZero(acc.mag.slice(10));
-      const position = op.startsWith("BRD") ? 100 - decoded.op : 0;
-      const digit = position > 0 ? distributor.digits[position - 1] : 0;
+      // 90 看最高位（第 10 位），99 看个位（第 1 位）。digits[0] 是个位，不是镜像。
+      const place = op.startsWith("BRD") ? 99 - decoded.op : -1;
+      const digit = place >= 0 ? distributor.digits[place] : 0;
       const taken =
         op === "BMI"
           ? acc.sign < 0
@@ -703,10 +704,12 @@ export function step650(state: IbmState): IbmState {
       } else if (op === "DIV" || op === "DIVRU") {
         if (isZero(operand.digits)) throw new MachineFault("除数是 0");
         const dividend = op === "DIV" ? acc.mag.slice() : [...acc.mag.slice(0, WIDTH), ...Array.from({ length: WIDTH }, () => 0)];
+        const dividendSign = acc.sign;
         const divided = divMag20by10(dividend, operand.digits);
         const mag = Array.from({ length: 20 }, (_, i) => (i < WIDTH ? divided.quot[i] : divided.rem[i - WIDTH]));
-        acc = { mag, sign: !isZero(divided.quot) && acc.sign !== operand.sign ? -1 : 1 };
-        remainderSign = !isZero(divided.rem) && acc.sign < 0 ? -1 : 1;
+        const quotientZero = isZero(divided.quot) && !divided.overflow;
+        acc = { mag, sign: !quotientZero && dividendSign !== operand.sign ? -1 : 1 };
+        remainderSign = !isZero(divided.rem) && dividendSign < 0 ? -1 : 1;
         if (divided.overflow) overflow = true;
         trace = `从高位逐位试商。商在下半，余数在上半。下一条在 ${pc}。`;
       } else if (op === "RAU") commit(loadSigned(upper, operand.sign));

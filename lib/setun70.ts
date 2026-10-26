@@ -607,7 +607,7 @@ export function stepPostfix(state: PostfixState): PostfixState {
   const returns = state.returns.slice();
   let regS = state.regS;
   let regR = state.regR;
-  const windows: [number, number, number] = [state.windows[0], page, state.windows[2]];
+  const windows: [number, number, number] = [state.windows[0], state.windows[1], state.windows[2]];
   let nextPc = state.pc + 1;
   const drum = state.drum;
   let lastDrum = state.lastDrum;

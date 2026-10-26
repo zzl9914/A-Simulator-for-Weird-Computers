@@ -1,6 +1,7 @@
 #include "trit.hpp"
 
 #include <cctype>
+#include <limits>
 
 Trits zeros(int width) { return Trits(static_cast<size_t>(width), 0); }
 
@@ -81,7 +82,12 @@ ParsedTrits parseBalanced(const std::string& token, int width) {
     return parsed;
   }
   if (isDecimal(token)) {
-    auto trits = tryFromInt(std::stoll(token), width);
+    auto number = tryParseInteger(token);
+    if (!number) {
+      parsed.reason = ParseFail::range;
+      return parsed;
+    }
+    auto trits = tryFromInt(*number, width);
     if (!trits) {
       parsed.reason = ParseFail::range;
       return parsed;
@@ -182,6 +188,30 @@ bool isDecimal(const std::string& text) {
     if (!std::isdigit(static_cast<unsigned char>(text[i]))) return false;
   }
   return true;
+}
+
+std::optional<long long> tryParseInteger(const std::string& text) {
+  if (!isDecimal(text)) return std::nullopt;
+  size_t index = 0;
+  bool negative = false;
+  if (text[0] == '+' || text[0] == '-') {
+    negative = text[0] == '-';
+    index = 1;
+  }
+  unsigned long long magnitude = 0;
+  const unsigned long long limit = static_cast<unsigned long long>(std::numeric_limits<long long>::max());
+  for (; index < text.size(); ++index) {
+    unsigned digit = static_cast<unsigned>(text[index] - '0');
+    if (magnitude > (std::numeric_limits<unsigned long long>::max() - digit) / 10) return std::nullopt;
+    magnitude = magnitude * 10 + digit;
+  }
+  if (!negative) {
+    if (magnitude > limit) return std::nullopt;
+    return static_cast<long long>(magnitude);
+  }
+  if (magnitude > limit + 1) return std::nullopt;
+  if (magnitude == limit + 1) return std::numeric_limits<long long>::min();
+  return -static_cast<long long>(magnitude);
 }
 
 Json errorResult(const std::vector<std::pair<int, std::string>>& errors) {

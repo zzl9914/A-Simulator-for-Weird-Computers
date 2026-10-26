@@ -149,9 +149,9 @@ Json assemble650(const std::string& source) {
         errors.emplace_back(line, "ORG 超出磁鼓");
         continue;
       }
-      int addr = std::stoi(tokens[cursor + 1]);
-      if (addr < 0 || addr >= kDrum) errors.emplace_back(line, "ORG 超出磁鼓");
-      else items.push_back(Item{ItemKind::org, addr, std::nullopt, {}, "", "", Kind::stop, 0, std::nullopt, std::nullopt, line});
+      auto parsed = tryParseInteger(tokens[cursor + 1]);
+      if (!parsed || *parsed < 0 || *parsed >= kDrum) errors.emplace_back(line, "ORG 超出磁鼓");
+      else items.push_back(Item{ItemKind::org, static_cast<int>(*parsed), std::nullopt, {}, "", "", Kind::stop, 0, std::nullopt, std::nullopt, line});
       continue;
     }
     if (head == "DEC") {
@@ -245,12 +245,12 @@ Json assemble650(const std::string& source) {
   auto resolve = [&](const std::optional<std::string>& token, int line, int fallback) -> std::optional<int> {
     if (!token) return fallback;
     if (isDecimal(*token) && (*token)[0] != '+' && (*token)[0] != '-') {
-      int value = std::stoi(*token);
-      if (value >= kDrum) {
+      auto parsed = tryParseInteger(*token);
+      if (!parsed || *parsed < 0 || *parsed >= kDrum) {
         errors.emplace_back(line, "地址 " + *token + " 超出磁鼓");
         return std::nullopt;
       }
-      return value;
+      return static_cast<int>(*parsed);
     }
     auto found = labelAt.find(*token);
     if (found == labelAt.end()) {

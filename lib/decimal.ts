@@ -1066,7 +1066,7 @@ export function stepDecimal(state: DecimalState): DecimalState {
       const value = op === "Q" ? aReg : bReg;
       addressGlyphs(value).forEach((glyph, index) => {
         const at = addr - 2 + index;
-        mem[at] = { ...charCell(glyph), wm: index === 0 ? true : mem[at].wm };
+        mem[at] = { ...charCell(glyph), wm: mem[at].wm };
         touched.push(at);
       });
       trace = `${op === "Q" ? "SAR" : "SBR"}：把${op === "Q" ? " A " : " B "}地址寄存器 ${pad3(value)} 写到 ${pad3(addr)}。`;

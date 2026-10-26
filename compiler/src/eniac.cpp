@@ -15,12 +15,12 @@ std::optional<int> parseAcc(const std::string& token, int line, std::string& err
     error = "第 " + std::to_string(line) + " 行：累加器是 1 到 20。";
     return std::nullopt;
   }
-  int acc = std::stoi(token);
-  if (acc < 1 || acc > kAccumulators) {
+  auto parsed = tryParseInteger(token);
+  if (!parsed || *parsed < 1 || *parsed > kAccumulators) {
     error = "第 " + std::to_string(line) + " 行：累加器是 1 到 20。";
     return std::nullopt;
   }
-  return acc - 1;
+  return static_cast<int>(*parsed) - 1;
 }
 
 std::optional<int> parseCount(const std::string& token, int line, int min, int max, const std::string& name, std::string& error) {
@@ -28,12 +28,12 @@ std::optional<int> parseCount(const std::string& token, int line, int min, int m
     error = "第 " + std::to_string(line) + " 行：" + name + " 要是 " + std::to_string(min) + " 到 " + std::to_string(max) + " 的整数";
     return std::nullopt;
   }
-  int value = std::stoi(token);
-  if (value < min || value > max) {
+  auto parsed = tryParseInteger(token);
+  if (!parsed || *parsed < min || *parsed > max) {
     error = "第 " + std::to_string(line) + " 行：" + name + " 要是 " + std::to_string(min) + " 到 " + std::to_string(max) + " 的整数";
     return std::nullopt;
   }
-  return value;
+  return static_cast<int>(*parsed);
 }
 
 std::optional<long long> parseSigned(const std::string& token, int line, std::string& error) {
@@ -41,12 +41,12 @@ std::optional<long long> parseSigned(const std::string& token, int line, std::st
     error = "第 " + std::to_string(line) + " 行：这里要有一个十进制数";
     return std::nullopt;
   }
-  long long value = std::stoll(token);
-  if (value > 9999999999LL || value < -9999999999LL) {
+  auto parsed = tryParseInteger(token);
+  if (!parsed || *parsed > 9999999999LL || *parsed < -9999999999LL) {
     error = "这个数放不进十位环形计数器";
     return std::nullopt;
   }
-  return value;
+  return *parsed;
 }
 
 std::vector<std::string> splitTokens(const std::string& text) {

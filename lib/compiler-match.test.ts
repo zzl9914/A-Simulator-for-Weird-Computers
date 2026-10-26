@@ -81,4 +81,10 @@ HERE    H
     const source = "        +\n        HALT\n";
     expect(normalize(cxx("setun70", source))).toEqual(normalize(assemblePostfix(source)));
   });
+
+  it("超长数字让汇编器报错，而不是崩溃", () => {
+    const source = `        ORG ${"9".repeat(40)}\n        HLT\n`;
+    expect(normalize(cxx("setun", source))).toEqual(normalize(assembleSetun(source)));
+    expect(assembleSetun(source).ok).toBe(false);
+  });
 });

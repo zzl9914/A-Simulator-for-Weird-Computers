@@ -143,9 +143,9 @@ Json assembleSetun70(const std::string& source) {
       if (cursor + 1 >= tokens.size() || !isDecimal(tokens[cursor + 1])) {
         errors.emplace_back(line, "ОЗУ 页要在 0 到 8");
       } else {
-        int page = std::stoi(tokens[cursor + 1]);
-        if (page < 0 || page >= kRamPages) errors.emplace_back(line, "ОЗУ 页要在 0 到 8");
-        else stmts.push_back(Stmt{StmtKind::page, page, 0, std::nullopt, 0, Op::halt, true, "", line});
+        auto pageValue = tryParseInteger(tokens[cursor + 1]);
+        if (!pageValue || *pageValue < 0 || *pageValue >= kRamPages) errors.emplace_back(line, "ОЗУ 页要在 0 到 8");
+        else stmts.push_back(Stmt{StmtKind::page, static_cast<int>(*pageValue), 0, std::nullopt, 0, Op::halt, true, "", line});
       }
       continue;
     }
@@ -155,12 +155,12 @@ Json assembleSetun70(const std::string& source) {
       if (cursor + 2 >= tokens.size() || !isDecimal(tokens[cursor + 1]) || !isDecimal(tokens[cursor + 2])) {
         errors.emplace_back(line, "WIN 写成 WIN 窗口 页。窗口是 0、1、2，页是 0 到 26");
       } else {
-        int window = std::stoi(tokens[cursor + 1]);
-        int page = std::stoi(tokens[cursor + 2]);
-        if (window < 0 || window > 2 || page < 0 || page >= kLevel1) {
+        auto windowValue = tryParseInteger(tokens[cursor + 1]);
+        auto pageValue = tryParseInteger(tokens[cursor + 2]);
+        if (!windowValue || !pageValue || *windowValue < 0 || *windowValue > 2 || *pageValue < 0 || *pageValue >= kLevel1) {
           errors.emplace_back(line, "WIN 写成 WIN 窗口 页。窗口是 0、1、2，页是 0 到 26");
         } else {
-          stmts.push_back(Stmt{StmtKind::win, page, window, std::nullopt, 0, Op::halt, true, "", line});
+          stmts.push_back(Stmt{StmtKind::win, static_cast<int>(*pageValue), static_cast<int>(*windowValue), std::nullopt, 0, Op::halt, true, "", line});
         }
       }
       continue;
@@ -172,11 +172,12 @@ Json assembleSetun70(const std::string& source) {
         errors.emplace_back(line, "WORD 缺一个数");
         continue;
       }
-      if (!isDecimal(tokens[cursor + 1]) || !tryFromInt(std::stoll(tokens[cursor + 1]), kStack)) {
+      auto number = tryParseInteger(tokens[cursor + 1]);
+      if (!number || !tryFromInt(*number, kStack)) {
         errors.emplace_back(line, tokens[cursor + 1] + " 放不进三个 трайт");
         continue;
       }
-      stmts.push_back(Stmt{StmtKind::word, 0, 0, label, std::stoll(tokens[cursor + 1]), Op::halt, true, text, line});
+      stmts.push_back(Stmt{StmtKind::word, 0, 0, label, *number, Op::halt, true, text, line});
       continue;
     }
     if (inlineLabel) {
@@ -232,16 +233,20 @@ Json assembleSetun70(const std::string& source) {
           errors.emplace_back(line, upper + " 写成 " + upper + " 前,后");
           continue;
         }
-        long long first = std::stoll(firstText);
-        long long second = std::stoll(secondText);
+        auto first = tryParseInteger(firstText);
+        auto second = tryParseInteger(secondText);
+        if (!first || !second) {
+          errors.emplace_back(line, upper + " 写成 " + upper + " 前,后");
+          continue;
+        }
         if (upper == "MAP") {
-          stmts.push_back(Stmt{StmtKind::imm, 0, 0, std::nullopt, second, Op::halt, true, std::to_string(second), line});
+          stmts.push_back(Stmt{StmtKind::imm, 0, 0, std::nullopt, *second, Op::halt, true, std::to_string(*second), line});
           stamp();
-          stmts.push_back(Stmt{StmtKind::imm, 0, 0, std::nullopt, first, Op::halt, true, std::to_string(first), line});
+          stmts.push_back(Stmt{StmtKind::imm, 0, 0, std::nullopt, *first, Op::halt, true, std::to_string(*first), line});
         } else {
-          stmts.push_back(Stmt{StmtKind::imm, 0, 0, std::nullopt, first, Op::halt, true, std::to_string(first), line});
+          stmts.push_back(Stmt{StmtKind::imm, 0, 0, std::nullopt, *first, Op::halt, true, std::to_string(*first), line});
           stamp();
-          stmts.push_back(Stmt{StmtKind::imm, 0, 0, std::nullopt, second, Op::halt, true, std::to_string(second), line});
+          stmts.push_back(Stmt{StmtKind::imm, 0, 0, std::nullopt, *second, Op::halt, true, std::to_string(*second), line});
         }
         Op which = upper == "MAP" ? Op::map : upper == "LOADP" ? Op::loadp : Op::storep;
         stmts.push_back(Stmt{StmtKind::op, 0, 0, std::nullopt, 0, which, true, upper + " " + spec, line});
@@ -284,8 +289,9 @@ Json assembleSetun70(const std::string& source) {
         continue;
       }
       std::string rawNumber = !token.empty() && token[0] == '#' ? token.substr(1) : token;
-      if ((isDecimal(token) || (!token.empty() && token[0] == '#' && isDecimal(rawNumber))) && tryFromInt(std::stoll(rawNumber), kStack)) {
-        stmts.push_back(Stmt{StmtKind::imm, 0, 0, std::nullopt, std::stoll(rawNumber), Op::halt, true, token, line});
+      auto number = tryParseInteger(rawNumber);
+      if ((isDecimal(token) || (!token.empty() && token[0] == '#' && isDecimal(rawNumber))) && number && tryFromInt(*number, kStack)) {
+        stmts.push_back(Stmt{StmtKind::imm, 0, 0, std::nullopt, *number, Op::halt, true, token, line});
         stamp();
         continue;
       }

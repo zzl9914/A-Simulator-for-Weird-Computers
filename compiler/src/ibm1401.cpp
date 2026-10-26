@@ -288,9 +288,9 @@ Json assemble1401(const std::string& source) {
       else if (operands.empty() || !isDecimal(operands[0]) || operands[0][0] == '+' || operands[0][0] == '-') {
         errors.emplace_back(line, "ORG 超出 0–1399");
       } else {
-        int addr = std::stoi(operands[0]);
-        if (addr < 0 || addr >= kCells) errors.emplace_back(line, "ORG 超出 0–1399");
-        else stmts.push_back(Stmt{StmtKind::org, addr, std::nullopt, std::nullopt, {}, nullptr, {}, 0, line});
+        auto parsed = tryParseInteger(operands[0]);
+        if (!parsed || *parsed < 0 || *parsed >= kCells) errors.emplace_back(line, "ORG 超出 0–1399");
+        else stmts.push_back(Stmt{StmtKind::org, static_cast<int>(*parsed), std::nullopt, std::nullopt, {}, nullptr, {}, 0, line});
       }
       continue;
     }
@@ -305,12 +305,13 @@ Json assemble1401(const std::string& source) {
         errors.emplace_back(line, "DS 的长度要在 1 到 40");
         continue;
       }
-      int count = std::stoi(operands[0]);
-      if (count < 1 || count > 40) {
+      auto parsed = tryParseInteger(operands[0]);
+      if (!parsed || *parsed < 1 || *parsed > 40) {
         errors.emplace_back(line, "DS 的长度要在 1 到 40");
         continue;
       }
-      std::vector<Cell> cells(count);
+      int count = static_cast<int>(*parsed);
+      std::vector<Cell> cells(static_cast<size_t>(count));
       cells[0].wm = true;
       stmts.push_back(Stmt{StmtKind::data, 0, std::nullopt, label, cells, nullptr, {}, 0, line});
       continue;
@@ -427,12 +428,12 @@ Json assemble1401(const std::string& source) {
   std::vector<bool> occupied(kCells, false);
   auto resolve = [&](const std::string& token, int line) -> std::optional<int> {
     if (isDecimal(token) && token[0] != '+' && token[0] != '-') {
-      int value = std::stoi(token);
-      if (value >= kCells) {
+      auto parsed = tryParseInteger(token);
+      if (!parsed || *parsed < 0 || *parsed >= kCells) {
         errors.emplace_back(line, "地址 " + token + " 超出内存");
         return std::nullopt;
       }
-      return value;
+      return static_cast<int>(*parsed);
     }
     auto found = labelAt.find(token);
     if (found == labelAt.end()) {

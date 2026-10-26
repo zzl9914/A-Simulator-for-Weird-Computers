@@ -147,6 +147,25 @@ B       DCW 045
     expect(state.mem[b - 5].wm).toBe(true);
   });
 
+  it("SAR 只写地址，不另设字标", () => {
+    const source = `
+        ORG 400
+        CS  KEEP
+        SAR KEEP
+        H
+        DCW 0
+        ORG 500
+KEEP    DC  000
+`;
+    const { program, state } = runSource(source);
+    expect(state.error).toBeUndefined();
+    const keep = program.labels.KEEP.addr;
+    expect(state.mem[keep].wm).toBe(false);
+    expect(state.mem[keep - 1].wm).toBe(false);
+    expect(state.mem[keep - 2].wm).toBe(false);
+    expect(glyphOf(state.mem[keep])).not.toBe(" ");
+  });
+
   it("单步停在第一条指令之后", () => {
     const assembled = assembleDecimal(DECIMAL_EXAMPLES[0].source);
     if (!assembled.ok) throw new Error("汇编失败");
