@@ -7,7 +7,10 @@ import { assemble650, IBM650_EXAMPLES } from "./ibm650";
 import { assembleSetun, SETUN_EXAMPLES } from "./setun";
 import { assemblePostfix, POSTFIX_EXAMPLES } from "./setun70";
 
-const bin = path.join(process.cwd(), "compiler/build/radixcc");
+const bin = path.join(
+  process.cwd(),
+  process.platform === "win32" ? "compiler/build/radixcc.exe" : "compiler/build/radixcc",
+);
 
 function normalize(value: unknown): unknown {
   if (typeof value === "number") return Object.is(value, -0) ? 0 : value;

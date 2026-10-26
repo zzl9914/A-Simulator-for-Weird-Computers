@@ -16,13 +16,8 @@ function Text({ as, children }: { as: "p" | "li"; children: string }) {
   );
 }
 
-export function InstructionManual({ machine }: { machine: "setun" | "setun70" | "eniac" | "ibm650" | "ibm1401" }) {
-  return (
-    <details className="rounded-md bg-muted px-3 py-2">
-      <summary className="cursor-pointer font-medium">指令</summary>
-      <div className="mt-2 space-y-2 text-muted-foreground">{manuals[machine]}</div>
-    </details>
-  );
+export function InstructionSet({ machine }: { machine: "setun" | "setun70" | "eniac" | "ibm650" | "ibm1401" }) {
+  return <div className="space-y-2 text-sm leading-6 text-muted-foreground">{manuals[machine]}</div>;
 }
 
 const manuals = {
@@ -46,7 +41,7 @@ const manuals = {
       <Text as="p">地址音节 `@0 A` 经第 0 个窗口把 A 的十八位压进栈。`&0 A` 压进去的是槽地址。单独一个数或 `#数` 会当成字面量。</Text>
       <ul className="list-disc space-y-1 pl-4">
         <Text as="li">`+` `-` `*` 以及别名 `ADD` `SUB` `MUL`：弹出两格，把和、差或积压回去。`NEG` 取负。`DUP` `SWAP` `DROP` 管栈。`TDN` 只把栈顶变号，不弹出。</Text>
-        <Text as="li">`S+T` / `S-T` 用寄存器 S 加上或减去栈顶。`L*T` 把 S 送进 R，再让栈顶乘 R，积留在 S。`SHF` 弹出移位数，把新的栈顶乘或除以 3 的幂。</Text>
+        <Text as="li">`S+T` / `S-T` 用寄存器 S 加上或减去栈顶。`L*T` 把 S 送进 R，再让栈顶乘 R，积留在 S。`SHF` 弹出移位数，正数把新的栈顶左移，负数右移并舍入到最近。</Text>
         <Text as="li">`!` 先弹出地址，再弹出数值，写成三个 трайт。`.` 印出栈顶。`HALT` 停机。</Text>
         <Text as="li">`JSR 标号` 调用子程序，`RMC` 返回。`DOW 标号` 在栈顶不是零时调用。`BRT 负,零,正` 按栈顶符号调用三个标号之一。`JMP` 转到栈顶上的地址。</Text>
         <Text as="li">`MAP 窗口,页` 改一个 приписка。`STOREP ОЗУ页,磁鼓页` 整页写入磁鼓。`LOADP` 整页读回。磁鼓页是 0–242。</Text>

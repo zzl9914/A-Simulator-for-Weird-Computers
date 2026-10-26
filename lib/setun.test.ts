@@ -114,6 +114,39 @@ KEEP:   .t 0
     expect(toInt(state.drum[4 * ZONE_WORDS + program.labels.KEEP])).toBe(9);
   });
 
+  it("六乘七按部分积得到 42", () => {
+    const { program, state } = runSource(SETUN_EXAMPLES[4].source);
+    expect(state.error).toBeUndefined();
+    expect(toInt(state.mem[program.labels.PROD])).toBe(42);
+    expect(state.output).toEqual([42]);
+  });
+
+  it("两个最大九位数相乘，十八位放不下就停机", () => {
+    const source = `
+        LDA A
+        MUL B
+        HLT
+A:      .t 9841
+B:      .t 9841
+`;
+    const { state } = runSource(source);
+    expect(state.error).toMatch(/十八位/);
+  });
+
+  it("规格化看最高两位，不靠浮点阈值", () => {
+    const source = `
+        LDA N
+        NORM OUT
+        HLT
+N:      .t 1
+OUT:    .t 0
+`;
+    const { program, state } = runSource(source);
+    expect(state.error).toBeUndefined();
+    expect(toInt(state.S.slice(0, 9))).toBe(7);
+    expect(toInt(state.mem[program.labels.OUT])).toBe(2187);
+  });
+
   it("未知标号报在对应行", () => {
     const assembled = assembleSetun("        LDA MISSING\n        HLT\n");
     expect(assembled.ok).toBe(false);

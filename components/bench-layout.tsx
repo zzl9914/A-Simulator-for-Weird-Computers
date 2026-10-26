@@ -6,48 +6,37 @@ import { Textarea } from "@/components/ui/textarea";
 import type { AsmError, ProgramFile } from "./use-machine";
 
 export function BenchShell({
-  lecture,
   toolbar,
   editor,
   console,
   memory,
-  stacked = false,
 }: {
-  lecture: ReactNode;
   toolbar: ReactNode;
   editor: ReactNode;
   console: ReactNode;
   memory: ReactNode;
-  stacked?: boolean;
 }) {
-  if (stacked) {
-    return (
-      <div className="flex flex-col gap-3 text-sm leading-6">
-        <article>{lecture}</article>
-        <section className="sheet rounded-md border p-2">
-          {toolbar}
-          {editor}
-        </section>
-        <aside className="rounded-md border bg-muted/40 p-3">{console}</aside>
-        <section className="overflow-auto rounded-md border p-2">{memory}</section>
-      </div>
-    );
-  }
   return (
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)_minmax(17rem,23rem)]">
-      <article className="order-4 rounded-md border bg-card p-4 text-sm leading-6 text-card-foreground lg:order-1 lg:max-h-[calc(100vh-9rem)] lg:overflow-auto">
-        {lecture}
-      </article>
-      <section className="sheet order-1 rounded-md border p-3 lg:order-2">
-        {toolbar}
-        {editor}
+    <div className="grid h-full min-h-0 grid-cols-3 text-sm">
+      <section className="flex min-h-0 min-w-0 flex-col border-r">
+        <ColumnLabel>代码</ColumnLabel>
+        <div className="shrink-0 px-3 pt-2">{toolbar}</div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto px-3 pb-3">{editor}</div>
       </section>
-      <aside className="order-2 rounded-md border bg-card p-4 text-card-foreground lg:order-3">{console}</aside>
-      <section className="order-3 overflow-auto rounded-md border bg-card p-3 text-card-foreground lg:order-4 lg:col-span-3">
-        {memory}
+      <section className="flex min-h-0 min-w-0 flex-col border-r">
+        <ColumnLabel>内存</ColumnLabel>
+        <div className="min-h-0 flex-1 overflow-auto px-3 py-2">{memory}</div>
+      </section>
+      <section className="flex min-h-0 min-w-0 flex-col">
+        <ColumnLabel>终端</ColumnLabel>
+        <div className="min-h-0 flex-1 overflow-auto px-3 py-2">{console}</div>
       </section>
     </div>
   );
+}
+
+function ColumnLabel({ children }: { children: string }) {
+  return <p className="border-b px-3 py-1 text-[11px] tracking-widest text-muted-foreground">{children}</p>;
 }
 
 export function Transport({
@@ -94,7 +83,6 @@ export function CodingSheet({
   value,
   onChange,
   label,
-  short = false,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -107,7 +95,7 @@ export function CodingSheet({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       spellCheck={false}
-      className={`field-sizing-fixed resize-y border-0 bg-transparent py-1 pr-2 pl-12 font-mono text-[13px] leading-6 shadow-none focus-visible:ring-0 ${short ? "min-h-44" : "min-h-80"}`}
+      className="field-sizing-fixed min-h-full flex-1 resize-none border-0 bg-transparent py-1 pr-2 pl-3 font-mono text-[13px] leading-6 shadow-none focus-visible:ring-0"
     />
   );
 }
@@ -132,6 +120,7 @@ export function ProgramBar({
   path,
   onPick,
   onSave,
+  onCustomize,
 }: {
   catalog: ProgramFile[];
   source: string;
@@ -139,6 +128,7 @@ export function ProgramBar({
   path: string;
   onPick: (file: string) => void;
   onSave: (title: string) => Promise<void>;
+  onCustomize: () => void;
 }) {
   const matched = catalog.find((item) => item.source === source);
   const custom = !matched;
@@ -172,7 +162,14 @@ export function ProgramBar({
             {item.title}
           </Button>
         ))}
-        <Button type="button" size="sm" variant={custom ? "default" : "outline"} className="ml-1" aria-pressed={custom}>
+        <Button
+          type="button"
+          size="sm"
+          variant={custom ? "default" : "outline"}
+          className="ml-1"
+          aria-pressed={custom}
+          onClick={onCustomize}
+        >
           自定义
         </Button>
         {custom ? (
@@ -219,6 +216,67 @@ export function ProgramBar({
         </form>
       </dialog>
     </div>
+  );
+}
+
+export function IdleBench({
+  sheetLabel,
+  short = false,
+  machine,
+}: {
+  sheetLabel: string;
+  short?: boolean;
+  machine: {
+    catalog: ProgramFile[];
+    source: string;
+    blurb: string;
+    path: string;
+    dirty: boolean;
+    blocked: boolean;
+    errors: AsmError[];
+    openFile: (file: string) => void;
+    save: (title: string) => Promise<void>;
+    customize: () => void;
+    edit: (next: string) => void;
+    assemble: () => void;
+    step: () => void;
+    run: () => void;
+    reset: () => void;
+  };
+}) {
+  return (
+    <BenchShell
+      toolbar={
+        <>
+          <ProgramBar
+            catalog={machine.catalog}
+            source={machine.source}
+            blurb={machine.blurb}
+            path={machine.path}
+            onPick={machine.openFile}
+            onSave={machine.save}
+            onCustomize={machine.customize}
+          />
+          <Transport
+            dirty={machine.dirty}
+            blocked={machine.blocked}
+            status="还没装入。写好程序后点「装入」。"
+            onAssemble={machine.assemble}
+            onStep={machine.step}
+            onRun={machine.run}
+            onReset={machine.reset}
+          />
+        </>
+      }
+      editor={
+        <>
+          <CodingSheet short={short} label={sheetLabel} value={machine.source} onChange={machine.edit} />
+          <ErrorList errors={machine.errors} />
+        </>
+      }
+      console={<p className="text-sm text-muted-foreground">机器还是空的。写好程序后点「装入」，才能单步或运行。</p>}
+      memory={<p className="text-sm text-muted-foreground">内存还是空的。</p>}
+    />
   );
 }
 

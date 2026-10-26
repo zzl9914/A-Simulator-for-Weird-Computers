@@ -3,6 +3,7 @@ import {
   addTrits,
   flipTrits,
   formatTrits,
+  mulTrits,
   mustFromInt,
   parseBalanced,
   shiftTrits,
@@ -701,33 +702,34 @@ export function stepSetun(state: SetunState): SetunState {
       }
       case "MUL":
       case "MADD": {
-        const operand = widenHigh(cell());
         const factor = op === "MUL" ? S : R;
-        const product = Math.round((toInt(factor) * toInt(operand)) / 3 ** WORD);
-        const combined = op === "MUL" ? product : toInt(S) + product;
-        const next = tryFromInt(combined, WIDE);
-        if (!next) return fail(state, `乘积 ${combined} 放不进十八位寄存器`, C);
+        const multiplied = mulTrits(factor, cell(), WIDE);
+        if (multiplied.overflow) {
+          return fail(state, "乘积放不进十八位寄存器。Сетунь 按部分积逐位累加，高位超出就停机。", C);
+        }
+        let next = multiplied.product;
+        if (op === "MADD") {
+          const added = addTrits(S, next);
+          if (added.overflow) return fail(state, "加上乘积后 S 溢出。Сетунь 遇到这种情况会停机。", C);
+          next = added.sum;
+        }
         S = next;
         w = signOf(S);
         trace =
           op === "MUL"
-            ? `算术乘法：S 乘上地址 ${effective} 的 ${toInt(cell())}，高九位是 ${toInt(highNine(S))}。w = ${fmtW(w)}。`
-            : `S 加上 R 与地址 ${effective} 的乘积，高九位是 ${toInt(highNine(S))}。w = ${fmtW(w)}。`;
+            ? `算术乘法：S 的每一位去乘地址 ${effective} 的 ${toInt(cell())}，部分积相加后高九位是 ${toInt(highNine(S))}。w = ${fmtW(w)}。`
+            : `R 与地址 ${effective} 的 ${toInt(cell())} 按位做部分积，再加进 S。高九位是 ${toInt(highNine(S))}。w = ${fmtW(w)}。`;
         break;
       }
       case "NORM": {
         let trits = S.slice();
         let count = 0;
-        const magnitude = () => Math.abs(toInt(trits));
-        const unit = 3 ** (WIDE - 2);
-        while (toInt(trits) !== 0 && magnitude() >= Math.round(1.5 * unit) && count > -WIDE) {
+        while (trits.some((trit) => trit !== 0) && trits[0] !== 0 && count > -WIDE) {
           trits = shiftTrits(trits, -1).trits;
           count -= 1;
         }
-        while (toInt(trits) !== 0 && magnitude() <= Math.round(0.5 * unit) && count < WIDE) {
-          const shifted = shiftTrits(trits, 1);
-          if (shifted.overflow) break;
-          trits = shifted.trits;
+        while (trits.some((trit) => trit !== 0) && trits[0] === 0 && trits[1] === 0 && count < WIDE) {
+          trits = shiftTrits(trits, 1).trits;
           count += 1;
         }
         mem[effective] = highNine(trits);
@@ -735,7 +737,7 @@ export function stepSetun(state: SetunState): SetunState {
         if (!shift) return fail(state, "规格化的移位数存不进 S", C);
         S = widenHigh(shift);
         w = signOf(S);
-        trace = `规格化后的高九位写入地址 ${effective}，移位 ${count} 留在 S。w = ${fmtW(w)}。`;
+        trace = `规格化看最高两位：最高位不是 0 就右移，前两位都是 0 就左移。高九位写入地址 ${effective}，移位 ${count} 留在 S。w = ${fmtW(w)}。`;
         break;
       }
       case "ADDC": {

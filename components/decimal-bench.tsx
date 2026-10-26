@@ -11,14 +11,16 @@ import {
   stepDecimal,
   watchFields,
 } from "@/lib/decimal";
-import { BenchShell, CodingSheet, ErrorList, ProgramBar, TraceBox, Transport } from "./bench-layout";
-import { InstructionManual } from "./manuals";
+import { BenchShell, CodingSheet, ErrorList, IdleBench, ProgramBar, TraceBox, Transport } from "./bench-layout";
 import { useMachine } from "./use-machine";
 
 export function DecimalBench() {
   const machine = useMachine("ibm1401", bootDecimal, stepDecimal, runDecimal);
-  if (machine.phase !== "ready" || !machine.state) {
+  if (machine.phase !== "ready") {
     return <p className="text-sm text-muted-foreground">{machine.failure || "正在打开本地汇编…"}</p>;
+  }
+  if (!machine.state) {
+    return <IdleBench sheetLabel="1401 Autocoder 程序" short machine={machine} />;
   }
   const { state } = machine;
   const watches = watchFields(state.mem, state.labels).filter((field) => field.kind !== "code");
@@ -38,8 +40,6 @@ export function DecimalBench() {
 
   return (
     <BenchShell
-      stacked
-      lecture={<DecimalLecture />}
       toolbar={
         <>
           <ProgramBar
@@ -49,6 +49,7 @@ export function DecimalBench() {
             path={machine.path}
             onPick={machine.openFile}
             onSave={machine.save}
+            onCustomize={machine.customize}
           />
           <Transport
             dirty={machine.dirty}
@@ -193,24 +194,4 @@ function rows(lo: number, hi: number): number[] {
   const starts: number[] = [];
   for (let addr = lo; addr <= hi; addr += 20) starts.push(addr);
   return starts;
-}
-
-function DecimalLecture() {
-  return (
-    <div className="space-y-3">
-      <p>
-        1401 的数字位是 8421 BCD：四位二进制的权是 8、4、2、1。7 写成 4+2+1，三位都亮，没有单独的「5」那一位。字符上面还有 A、B 两个区位位，字母和正负号靠它们，字标是另外一位。
-      </p>
-      <p>
-        字段没有固定长度。标号指向个位，加减从右往左，直到 B 字段高位的字标。<span className="font-mono">DCW</span> 把字标打在常数的最高位。
-      </p>
-      <p>
-        正负号不占单独一格，而是写在个位的区位上。算术做完，正数个位同时带上 A、B 区位，打印机就把它印成字母：2 变成 B，0 变成 &。负数只有 B 区位，5 印成 N。所以工资单不能把运算结果直接送去打印，真机要用编辑指令把区位收拾成普通数字。
-      </p>
-      <p>
-        指令自己也是变长的。操作码上有字标，下一条指令的字标决定这一条在哪里结束。转移指令 <span className="font-mono">B</span> 后面再跟一个特征字符：S 是相等，U 是 B 比 A 大，T 是 B 比 A 小。比较本身是 <span className="font-mono">C</span>，结果亮在高、等、低三盏灯上。
-      </p>
-      <InstructionManual machine="ibm1401" />
-    </div>
-  );
 }

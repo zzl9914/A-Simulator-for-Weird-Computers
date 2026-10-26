@@ -546,7 +546,7 @@ function readUpTo(mem: Cell[], addr: number, length: number): Field {
   return { digits, sign, cells, longer: true };
 }
 
-function compareMagnitude(left: number[], right: number[]): number {
+function compareMagnitude(left: readonly number[], right: readonly number[]): number {
   const width = Math.max(left.length, right.length);
   for (let i = width - 1; i >= 0; i -= 1) {
     const diff = (left[i] ?? 0) - (right[i] ?? 0);
@@ -566,7 +566,7 @@ function addMagnitude(left: number[], right: number[]): { digits: number[]; over
   return { digits, overflow: carry !== 0 };
 }
 
-function subMagnitude(big: number[], small: number[]): number[] {
+function subMagnitude(big: readonly number[], small: readonly number[]): number[] {
   const digits: number[] = [];
   let borrow = 0;
   for (let i = 0; i < big.length; i += 1) {
@@ -580,7 +580,7 @@ function subMagnitude(big: number[], small: number[]): number[] {
   return digits;
 }
 
-function fit(digits: number[], length: number): number[] {
+function fit(digits: readonly number[], length: number): number[] {
   const fitted = digits.slice(0, length);
   while (fitted.length < length) fitted.push(0);
   return fitted;
@@ -634,27 +634,75 @@ function writeField(mem: Cell[], field: Field, digits: number[], sign: 1 | -1) {
   });
 }
 
-function fieldBig(field: Field): bigint {
-  let value = 0n;
-  for (let i = field.digits.length - 1; i >= 0; i -= 1) value = value * 10n + BigInt(field.digits[i] ?? 0);
-  return value * BigInt(field.sign);
+function digitsText(digits: readonly number[], sign: 1 | -1): string {
+  const body = digits.slice().reverse().join("").replace(/^0+(?=\d)/, "");
+  if (body === "0") return "0";
+  return `${sign < 0 ? "-" : ""}${body}`;
 }
 
-function writeBig(mem: Cell[], cells: number[], value: bigint) {
-  const negative = value < 0n;
-  let rest = negative ? -value : value;
-  for (let index = 0; index < cells.length; index += 1) {
-    const digit = Number(rest % 10n);
-    rest /= 10n;
-    const addr = cells[index];
-    mem[addr] = {
-      digit,
-      zone: index === 0 ? (negative ? "b" : value === 0n ? "none" : "ab") : "none",
-      wm: index === cells.length - 1 ? true : mem[addr].wm && index !== 0 ? false : index === cells.length - 1,
-      literal: null,
-    };
-    if (index !== cells.length - 1) mem[addr].wm = false;
+function resultSign(sign: 1 | -1, digits: readonly number[]): 1 | -1 {
+  return digits.every((digit) => digit === 0) ? 1 : sign;
+}
+
+function mulDigits(left: readonly number[], right: readonly number[]): number[] {
+  const prod = Array.from({ length: left.length + right.length }, () => 0);
+  for (let i = 0; i < right.length; i += 1) {
+    let carry = 0;
+    for (let j = 0; j < left.length; j += 1) {
+      const sum = prod[i + j] + left[j] * right[i] + carry;
+      prod[i + j] = sum % 10;
+      carry = Math.floor(sum / 10);
+    }
+    let at = i + left.length;
+    while (carry > 0) {
+      if (at >= prod.length) throw new MachineFault("乘积超出 A、B 字段长度之和");
+      const sum = prod[at] + carry;
+      prod[at] = sum % 10;
+      carry = Math.floor(sum / 10);
+      at += 1;
+    }
   }
+  return prod;
+}
+
+function shiftedDivisor(divisor: readonly number[], shift: number, width: number): number[] | null {
+  const shifted = Array.from({ length: width }, () => 0);
+  for (let i = 0; i < divisor.length; i += 1) {
+    const dest = i + shift;
+    if (dest >= width) {
+      if (divisor[i] !== 0) return null;
+    } else shifted[dest] = divisor[i];
+  }
+  return shifted;
+}
+
+/** 从高位起，能减几次除数就得到那一位商。 */
+function divDigits(dividend: readonly number[], divisor: readonly number[]): { quot: number[]; rem: number[] } {
+  const width = dividend.length;
+  let rem = fit(dividend, width);
+  const quot = Array.from({ length: width }, () => 0);
+  for (let shift = width - 1; shift >= 0; shift -= 1) {
+    const shifted = shiftedDivisor(divisor, shift, width);
+    let count = 0;
+    while (shifted && compareMagnitude(rem, shifted) >= 0) {
+      rem = subMagnitude(rem, shifted);
+      count += 1;
+      if (count > 9) throw new MachineFault("商超出字段");
+    }
+    quot[shift] = count;
+  }
+  return { quot, rem };
+}
+
+function writeDigits(mem: Cell[], cells: number[], digits: readonly number[], sign: 1 | -1) {
+  cells.forEach((addr, index) => {
+    mem[addr] = {
+      digit: digits[index] ?? 0,
+      literal: null,
+      wm: index === cells.length - 1,
+      zone: index === 0 ? (sign < 0 ? "b" : "ab") : "none",
+    };
+  });
 }
 
 function fieldValue(field: Field): number {
@@ -953,28 +1001,28 @@ export function stepDecimal(state: DecimalState): DecimalState {
       bReg = bAddr;
       const aField = readUntilMark(mem, aAddr);
       const bField = readUntilMark(mem, bAddr);
-      const left = fieldBig(aField);
-      const right = fieldBig(bField);
       if (op === "%") {
-        if (left === 0n) throw new MachineFault("除数是 0");
-        const quotient = right / left;
-        const remainder = right % left;
-        writeBig(mem, bField.cells, remainder);
+        if (aField.digits.every((digit) => digit === 0)) throw new MachineFault("除数是 0");
+        const divided = divDigits(bField.digits, aField.digits);
+        const quotSign = resultSign(aField.sign === bField.sign ? 1 : -1, divided.quot);
+        const remSign = resultSign(bField.sign, divided.rem);
+        writeDigits(mem, bField.cells, divided.rem, remSign);
         const quotCells: number[] = [];
         const high = bField.cells[bField.cells.length - 1] - 1;
         for (let n = 0; n < bField.cells.length; n += 1) quotCells.push(high - n);
         if (quotCells.some((addr) => addr < 0)) throw new MachineFault("商向左越过了地址 000");
-        writeBig(mem, quotCells, quotient);
+        writeDigits(mem, quotCells, divided.quot, quotSign);
         touched.push(...aField.cells, ...bField.cells, ...quotCells);
-        trace = `除法：${right.toString()} ÷ ${left.toString()}。商写在被除数左边，余数留在 B 字段。`;
+        trace = `除法逐位试商：${digitsText(bField.digits, bField.sign)} ÷ ${digitsText(aField.digits, aField.sign)}。商 ${digitsText(divided.quot, quotSign)} 写在被除数左边，余数 ${digitsText(divided.rem, remSign)} 留在 B 字段。`;
       } else {
-        const product = left * right;
+        const product = mulDigits(aField.digits, bField.digits);
+        const sign = resultSign(aField.sign === bField.sign ? 1 : -1, product);
         const cells: number[] = [];
-        for (let n = 0; n < aField.digits.length + bField.digits.length; n += 1) cells.push(bAddr - n);
+        for (let n = 0; n < product.length; n += 1) cells.push(bAddr - n);
         if (cells.some((addr) => addr < 0)) throw new MachineFault("积向左越过了地址 000");
-        writeBig(mem, cells, product);
+        writeDigits(mem, cells, product, sign);
         touched.push(...cells);
-        trace = `乘法：${left.toString()} × ${right.toString()} = ${product.toString()}，个位仍在 ${pad3(bAddr)}。`;
+        trace = `乘法逐位做部分积：${digitsText(aField.digits, aField.sign)} × ${digitsText(bField.digits, bField.sign)} = ${digitsText(product, sign)}，个位仍在 ${pad3(bAddr)}。`;
       }
     } else if (op === "#") {
       const [aAddr, bAddr] = takeAB();

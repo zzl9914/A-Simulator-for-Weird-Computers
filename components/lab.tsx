@@ -1,88 +1,113 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DecimalBench } from "./decimal-bench";
 import { EniacBench } from "./eniac-bench";
 import { Ibm650Bench } from "./ibm650-bench";
+import { MACHINES, MachineDetails, type MachineId } from "./machine-details";
 import { PostfixBench } from "./postfix-bench";
 import { SetunBench } from "./setun-bench";
 
-const GROUPS = [
-  {
-    title: "三进制",
-    note: "Сетунь 和 Сетунь-70 是两套不同的原型，程序写法也不一样。",
-    machines: [
-      { id: "setun", name: "Сетунь", note: "1958 · 162 短字" },
-      { id: "setun70", name: "Сетунь-70", note: "1970 · 81 槽一页" },
-    ],
-  },
-  {
-    title: "十进制的三种编码",
-    note: "十中取一、二五进制、8421。二五进制不是 5421。",
-    machines: [
-      { id: "eniac", name: "ENIAC", note: "1945 · 20 个累加器" },
-      { id: "650", name: "IBM 650", note: "1954 · 2000 字磁鼓" },
-      { id: "1401", name: "IBM 1401", note: "1959 · 1400 字符" },
-    ],
-  },
-] as const;
-
-type MachineId = (typeof GROUPS)[number]["machines"][number]["id"];
-
 export function Lab() {
   const [machine, setMachine] = useState<MachineId>("setun");
+  const current = MACHINES.find((item) => item.id === machine) ?? MACHINES[0];
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6">
-      <header className="max-w-3xl">
-        <p className="text-xs tracking-[0.25em] text-muted-foreground">原型机模拟器</p>
-        <h1 className="mt-1 font-heading text-4xl text-balance sm:text-5xl">五种老机器的写法</h1>
-        <p className="mt-3 text-base leading-7">
-          汇编写在本地文件里。点开一份，前端向 C++ 编译器要结果，再在页面上单步。磁鼓等待和读卡没有做进来。
-        </p>
-      </header>
-      {GROUPS.map((group) => (
-        <section key={group.title} className="space-y-2">
-          <div>
-            <h2 className="font-heading text-xl">{group.title}</h2>
-            <p className="text-sm text-muted-foreground">{group.note}</p>
-          </div>
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label={group.title}>
-            {group.machines.map((item) => (
-              <Button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={machine === item.id}
-                variant={machine === item.id ? "default" : "outline"}
-                className="h-auto px-3 py-2"
-                onClick={() => setMachine(item.id)}
-              >
-                <span className="block text-left">
-                  <span className="block font-heading text-base leading-5">{item.name}</span>
-                  <span className="block text-[11px] font-normal opacity-80">{item.note}</span>
-                </span>
-              </Button>
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="relative z-20 flex shrink-0 items-center gap-1 border-b px-2 py-1.5">
+        <Popup label="system" closeOnClick>
+          <ul className="min-w-44 py-1">
+            {MACHINES.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className={`flex w-full items-baseline justify-between gap-6 px-3 py-1.5 text-left text-sm hover:bg-muted ${item.id === machine ? "bg-muted" : ""}`}
+                  onClick={() => setMachine(item.id)}
+                >
+                  <span>{item.name}</span>
+                  <span className="text-xs text-muted-foreground">{item.year}</span>
+                </button>
+              </li>
             ))}
+          </ul>
+        </Popup>
+        <Popup label="details" wide>
+          <div className="w-[min(36rem,calc(100vw-2rem))] max-h-[min(32rem,calc(100vh-4rem))] overflow-auto p-4">
+            <p className="mb-3 text-sm">
+              {current.name}
+              <span className="ml-2 text-muted-foreground">{current.year}</span>
+            </p>
+            <MachineDetails machine={machine} />
           </div>
-        </section>
-      ))}
-      <div className={machine === "setun" ? "block" : "hidden"}>
-        <SetunBench />
+        </Popup>
+      </header>
+      <div className="min-h-0 flex-1">
+        <div className={machine === "setun" ? "h-full" : "hidden"}>
+          <SetunBench />
+        </div>
+        <div className={machine === "setun70" ? "h-full" : "hidden"}>
+          <PostfixBench />
+        </div>
+        <div className={machine === "eniac" ? "h-full" : "hidden"}>
+          <EniacBench />
+        </div>
+        <div className={machine === "650" ? "h-full" : "hidden"}>
+          <Ibm650Bench />
+        </div>
+        <div className={machine === "1401" ? "h-full" : "hidden"}>
+          <DecimalBench />
+        </div>
       </div>
-      <div className={machine === "setun70" ? "block" : "hidden"}>
-        <PostfixBench />
-      </div>
-      <div className={machine === "eniac" ? "block" : "hidden"}>
-        <EniacBench />
-      </div>
-      <div className={machine === "650" ? "block" : "hidden"}>
-        <Ibm650Bench />
-      </div>
-      <div className={machine === "1401" ? "block" : "hidden"}>
-        <DecimalBench />
-      </div>
+    </div>
+  );
+}
+
+function Popup({
+  label,
+  wide = false,
+  closeOnClick = false,
+  children,
+}: {
+  label: string;
+  wide?: boolean;
+  closeOnClick?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(event: MouseEvent) {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={root} className="relative">
+      <Button type="button" size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+        {label}
+      </Button>
+      {open ? (
+        <div
+          className={`absolute top-full left-0 z-30 mt-1 rounded-md border bg-card text-card-foreground shadow-lg ${wide ? "" : "overflow-hidden"}`}
+          onClick={() => {
+            if (closeOnClick) setOpen(false);
+          }}
+        >
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }

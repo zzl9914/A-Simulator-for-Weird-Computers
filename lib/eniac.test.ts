@@ -33,6 +33,47 @@ describe("ENIAC 十进制编码", () => {
     expect(ACCUMULATORS).toBe(20);
   });
 
+  it("27 乘 15，低十位是 405", () => {
+    const state = run(ENIAC_EXAMPLES[2].source);
+    expect(state.error).toBeUndefined();
+    expect(accValue(state.acc[2])).toBe(405);
+    expect(accValue(state.acc[3])).toBe(0);
+  });
+
+  it("45 除以 7，商 6 余 3", () => {
+    const state = run(`
+SET 1, +45
+SET 2, +7
+DIV 1, 2, 3
+HLT
+`);
+    expect(state.error).toBeUndefined();
+    expect(accValue(state.acc[2])).toBe(6);
+    expect(accValue(state.acc[0])).toBe(3);
+  });
+
+  it("开方器对 144 逐对求根得到 12", () => {
+    const state = run(`
+SET 1, +144
+SQRT 1, 2
+HLT
+`);
+    expect(state.error).toBeUndefined();
+    expect(accValue(state.acc[1])).toBe(12);
+  });
+
+  it("灯环加过 9999999999 后回到 0", () => {
+    const state = run(`
+SET 1, +9999999999
+SET 2, +1
+ADD 2, 1
+HLT
+`);
+    expect(state.error).toBeUndefined();
+    expect(accValue(state.acc[0])).toBe(0);
+    expect(state.acc[0].digits[0]).toBe(0);
+  });
+
   it("30 减 45 得到 −15", () => {
     const state = run(ENIAC_EXAMPLES[1].source);
     expect(accValue(state.acc[0])).toBe(-15);

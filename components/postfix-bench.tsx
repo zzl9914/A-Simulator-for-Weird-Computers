@@ -10,15 +10,17 @@ import {
   stepPostfix,
   runPostfix,
 } from "@/lib/setun70";
-import { BenchShell, CodingSheet, ErrorList, ProgramBar, TraceBox, Transport } from "./bench-layout";
-import { InstructionManual } from "./manuals";
+import { BenchShell, CodingSheet, ErrorList, IdleBench, ProgramBar, TraceBox, Transport } from "./bench-layout";
 import { sameWord, Trits } from "./trits";
 import { useMachine } from "./use-machine";
 
 export function PostfixBench() {
   const machine = useMachine("setun70", bootPostfix, stepPostfix, runPostfix);
-  if (machine.phase !== "ready" || !machine.state) {
+  if (machine.phase !== "ready") {
     return <p className="text-sm text-muted-foreground">{machine.failure || "正在打开本地汇编…"}</p>;
+  }
+  if (!machine.state) {
+    return <IdleBench sheetLabel="Сетунь-70 音节程序" machine={machine} />;
   }
   const { state } = machine;
   const focus = state.executed ?? state.pc;
@@ -26,7 +28,6 @@ export function PostfixBench() {
 
   return (
     <BenchShell
-      lecture={<PostfixLecture />}
       toolbar={
         <>
           <ProgramBar
@@ -36,6 +37,7 @@ export function PostfixBench() {
             path={machine.path}
             onPick={machine.openFile}
             onSave={machine.save}
+            onCustomize={machine.customize}
           />
           <Transport
             dirty={machine.dirty}
@@ -134,23 +136,5 @@ export function PostfixBench() {
         </div>
       }
     />
-  );
-}
-
-function PostfixLecture() {
-  return (
-    <div className="space-y-3">
-      <h2 className="font-heading text-xl">Сетунь-70，1970</h2>
-      <p>
-        这台不是前一台的小改款。它没有「操作码加地址」这种指令字。程序本身放在页里，一格是六个三进制位，叫做 трайт。前两位是 00 的，是运算音节；否则是地址音节。
-      </p>
-      <p>
-        地址音节经三个 приписки 指出的页去取数。栈上的一格是三个 трайт，共十八位。<span className="font-mono">@0 A</span> 把那一格压进栈，<span className="font-mono">&0 A</span> 压进去的是槽地址，<span className="font-mono">!</span> 再把三个 трайт 写回去。运算符写在数的后面。
-      </p>
-      <p>
-        一级内存是 27 页，每页 81 个 трайт：0–8 页是 ОЗУ，9–26 页是 ПЗУ。磁鼓 243 页，<span className="font-mono">STOREP</span> 和 <span className="font-mono">LOADP</span> 整页交换，<span className="font-mono">MAP</span> 改 приписки。
-      </p>
-      <InstructionManual machine="setun70" />
-    </div>
   );
 }

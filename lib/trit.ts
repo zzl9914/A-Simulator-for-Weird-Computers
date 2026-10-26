@@ -93,6 +93,60 @@ export function shiftTrits(
   return { trits: current, overflow };
 }
 
+/** 移出寄存器宽度时不再逐位循环。右移把低位丢掉，结果就是舍入到最近。 */
+export function shiftBalanced(
+  trits: readonly Trit[],
+  count: number,
+): { trits: Trit[]; overflow: boolean } {
+  if (!Number.isInteger(count)) throw new Error("移位数不是整数");
+  if (count === 0) return { trits: trits.slice(), overflow: false };
+  if (Math.abs(count) >= trits.length) {
+    const nonzero = trits.some((trit) => trit !== 0);
+    return { trits: zeros(trits.length), overflow: count > 0 && nonzero };
+  }
+  return shiftTrits(trits, count);
+}
+
+function addGrow(left: readonly Trit[], right: readonly Trit[]): Trit[] {
+  const width = Math.max(left.length, right.length, 1);
+  const a = [...zeros(width - left.length), ...left];
+  const b = [...zeros(width - right.length), ...right];
+  const sum: Trit[] = new Array(width);
+  let carry: Trit = 0;
+  for (let i = width - 1; i >= 0; i -= 1) {
+    let total = a[i] + b[i] + carry;
+    carry = 0;
+    if (total > 1) {
+      total -= 3;
+      carry = 1;
+    } else if (total < -1) {
+      total += 3;
+      carry = -1;
+    }
+    sum[i] = total as Trit;
+  }
+  return carry === 0 ? sum : [carry, ...sum];
+}
+
+/** 按位做部分积。乘积放不进 width 位时 overflow。 */
+export function mulTrits(
+  left: readonly Trit[],
+  right: readonly Trit[],
+  width: number,
+): { product: Trit[]; overflow: boolean } {
+  let acc: Trit[] = [];
+  for (let i = 0; i < right.length; i += 1) {
+    const trit = right[right.length - 1 - i];
+    if (trit === 0) continue;
+    const term = [...(trit === 1 ? left : flipTrits(left)), ...zeros(i)];
+    acc = addGrow(acc, term);
+  }
+  let trimmed = acc;
+  while (trimmed.length > width && trimmed[0] === 0) trimmed = trimmed.slice(1);
+  if (trimmed.length > width) return { product: zeros(width), overflow: true };
+  return { product: [...zeros(width - trimmed.length), ...trimmed], overflow: false };
+}
+
 const TRIT_MINUS = new Set(["-", "−", "–", "T", "t"]);
 
 /** 从左到右、高位在前。含有非三进制字符时返回 null。 */

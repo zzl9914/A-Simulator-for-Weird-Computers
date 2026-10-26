@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addTrits, flipTrits, formatTrits, mustFromInt, shiftTrits, toInt, tryFromInt } from "./trit";
+import { addTrits, flipTrits, formatTrits, mulTrits, mustFromInt, shiftBalanced, shiftTrits, toInt, tryFromInt } from "./trit";
 
 describe("平衡三进制", () => {
   it("在正负范围内来回转换", () => {
@@ -43,6 +43,29 @@ describe("平衡三进制", () => {
         expect(toInt(sum.sum)).toBe(left + right);
       }
     }
+  });
+
+  it("乘法是部分积，大数也不会先变成浮点", () => {
+    for (let left = -40; left <= 40; left += 1) {
+      for (let right = -30; right <= 30; right += 1) {
+        const product = mulTrits(mustFromInt(left, 9), mustFromInt(right, 9), 18);
+        expect(product.overflow).toBe(false);
+        const expected = left * right;
+        expect(toInt(product.product)).toBe(expected === 0 ? 0 : expected);
+      }
+    }
+    const big = mustFromInt(9841, 9);
+    const full = mulTrits(big, big, 18);
+    expect(full.overflow).toBe(false);
+    expect(toInt(full.product)).toBe(9841 * 9841);
+    const max = mustFromInt((3 ** 18 - 1) / 2, 18);
+    expect(mulTrits(max, mustFromInt(2, 4), 18).overflow).toBe(true);
+  });
+
+  it("右移舍入到最近，负的 −2 变成 −1", () => {
+    expect(toInt(shiftBalanced(mustFromInt(-2, 9), -1).trits)).toBe(-1);
+    expect(toInt(shiftBalanced(mustFromInt(5, 9), -1).trits)).toBe(2);
+    expect(shiftBalanced(mustFromInt(1, 9), 40).overflow).toBe(true);
   });
 
   it("超出位数时失败", () => {

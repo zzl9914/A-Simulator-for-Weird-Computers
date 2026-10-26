@@ -56,6 +56,48 @@ describe("IBM 650 二五进制", () => {
     expect(wordValue(state.mem[program.labels.COUNT])).toBe(10);
   });
 
+  it("上半乘 15 得到 405", () => {
+    const { program, state } = run(IBM650_EXAMPLES[3].source);
+    expect(state.error).toBeUndefined();
+    expect(wordValue(state.mem[program.labels.PROD])).toBe(405);
+  });
+
+  it("45 除以 7，商在下半，余数在上半", () => {
+    const source = `
+        RAL N
+        DIV D
+        STL Q
+        STU R
+        STOP
+N       DEC +45
+D       DEC +7
+Q       DEC +0
+R       DEC +0
+`;
+    const { program, state } = run(source);
+    expect(state.error).toBeUndefined();
+    expect(wordValue(state.mem[program.labels.Q])).toBe(6);
+    expect(wordValue(state.mem[program.labels.R])).toBe(3);
+  });
+
+  it("负数除法的余数跟着被除数", () => {
+    const source = `
+        RAL N
+        DIV D
+        STL Q
+        STU R
+        STOP
+N       DEC -45
+D       DEC +7
+Q       DEC +0
+R       DEC +0
+`;
+    const { program, state } = run(source);
+    expect(state.error).toBeUndefined();
+    expect(wordValue(state.mem[program.labels.Q])).toBe(-6);
+    expect(wordValue(state.mem[program.labels.R])).toBe(-3);
+  });
+
   it("下半加一会进位到上半", () => {
     const source = `
         RAL NINES

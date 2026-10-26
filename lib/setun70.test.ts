@@ -44,6 +44,32 @@ describe("Сетунь-70", () => {
     expect(state.lastDrum).toBe(1);
   });
 
+  it("右移 −2 舍入成 −1，而不是向零截成 0", () => {
+    const source = `
+        @0 N
+        -1
+        SHF
+        .
+        HALT
+N:      WORD -2
+`;
+    const { state } = runSource(source);
+    expect(state.error).toBeUndefined();
+    expect(state.output).toEqual([-1]);
+  });
+
+  it("十八位乘积超出时停机", () => {
+    const source = `
+        @0 A
+        @0 A
+        *
+        HALT
+A:      WORD 193710244
+`;
+    const { state } = runSource(source);
+    expect(state.error).toMatch(/十八位/);
+  });
+
   it("栈空时做加法会停在错误上", () => {
     const assembled = assemblePostfix("        +\n        HALT\n");
     expect(assembled.ok).toBe(true);

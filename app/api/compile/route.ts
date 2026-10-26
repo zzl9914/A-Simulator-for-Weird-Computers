@@ -2,7 +2,10 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 
 const MACHINES = new Set(["setun", "setun70", "eniac", "ibm650", "ibm1401"]);
-const compiler = path.join(process.cwd(), "compiler/build/radixcc");
+const compiler = path.join(
+  process.cwd(),
+  process.platform === "win32" ? "compiler/build/radixcc.exe" : "compiler/build/radixcc",
+);
 
 function compile(machine: string, source: string) {
   return new Promise<string>((resolve, reject) => {

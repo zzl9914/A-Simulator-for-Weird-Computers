@@ -1,22 +1,22 @@
 "use client";
 
 import { accValue, bootEniac, decadeLamps, runEniac, stepEniac } from "@/lib/eniac";
-import { BenchShell, CodingSheet, ErrorList, ProgramBar, TraceBox, Transport } from "./bench-layout";
-import { InstructionManual } from "./manuals";
+import { BenchShell, CodingSheet, ErrorList, IdleBench, ProgramBar, TraceBox, Transport } from "./bench-layout";
 import { useMachine } from "./use-machine";
 
 export function EniacBench() {
   const machine = useMachine("eniac", bootEniac, stepEniac, runEniac);
-  if (machine.phase !== "ready" || !machine.state) {
+  if (machine.phase !== "ready") {
     return <p className="text-sm text-muted-foreground">{machine.failure || "正在打开本地汇编…"}</p>;
+  }
+  if (!machine.state) {
+    return <IdleBench sheetLabel="ENIAC 接线表" short machine={machine} />;
   }
   const { state } = machine;
   const pulse = state.executed === null ? state.pulses[state.pc] : state.pulses[state.executed];
 
   return (
     <BenchShell
-      stacked
-      lecture={<EniacLecture />}
       toolbar={
         <>
           <ProgramBar
@@ -26,6 +26,7 @@ export function EniacBench() {
             path={machine.path}
             onPick={machine.openFile}
             onSave={machine.save}
+            onCustomize={machine.customize}
           />
           <Transport
             dirty={machine.dirty}
@@ -100,18 +101,4 @@ function status(halted: boolean, error: string | undefined, steps: number): stri
   if (halted) return `已停机，共 ${steps} 个脉冲。`;
   if (steps === 0) return "接线已装好，还没送脉冲。";
   return `已走 ${steps} 个脉冲。`;
-}
-
-function EniacLecture() {
-  return (
-    <div className="space-y-2">
-      <p>
-        1945 年的 ENIAC 不用二进制位去拼一个十进制数字。每一位是一圈十个触发器，环上只能有一个导通，导通的那一号就是这个数字。这就是十中取一的十进制编码。
-      </p>
-      <p>
-        它也没有存在内存里的程序。计算是接线：一个程序脉冲让某台累加器送出数，下一根线把脉冲交给另一台去做加或减。这里的每一行就是这样一根线。20 台累加器都在，编号 1 到 20，每台十位。
-      </p>
-      <InstructionManual machine="eniac" />
-    </div>
-  );
 }

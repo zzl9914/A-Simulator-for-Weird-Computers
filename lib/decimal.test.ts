@@ -122,6 +122,31 @@ HERE    H
     expect(assembled.program.labels.HERE.addr).toBe(1200);
   });
 
+  it("6 乘 7 逐位得到 42，个位印成 B", () => {
+    const { state, watch } = valueOf(DECIMAL_EXAMPLES[3].source, "B");
+    expect(state.error).toBeUndefined();
+    expect(watch?.value).toBe(42);
+    expect(watch?.glyphs).toBe("4B");
+  });
+
+  it("45 除以 7，商 6 余 3", () => {
+    const source = `
+        ORG 300
+        DIV A,B
+        H
+        DCW 0
+        ORG 320
+A       DCW 7
+B       DCW 045
+`;
+    const { program, state } = runSource(source);
+    expect(state.error).toBeUndefined();
+    const b = program.labels.B.addr;
+    expect(glyphOf(state.mem[b])).toBe("C");
+    expect(glyphOf(state.mem[b - 3])).toBe("F");
+    expect(state.mem[b - 5].wm).toBe(true);
+  });
+
   it("单步停在第一条指令之后", () => {
     const assembled = assembleDecimal(DECIMAL_EXAMPLES[0].source);
     if (!assembled.ok) throw new Error("汇编失败");

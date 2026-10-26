@@ -229,6 +229,117 @@ export function bootEniac(program: EniacProgram): EniacState {
   };
 }
 
+function magZero(digits: readonly number[]): boolean {
+  return digits.every((digit) => digit === 0);
+}
+
+function cmpMag(left: readonly number[], right: readonly number[]): number {
+  const width = Math.max(left.length, right.length);
+  for (let i = width - 1; i >= 0; i -= 1) {
+    const diff = (left[i] ?? 0) - (right[i] ?? 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+function addMag(left: readonly number[], right: readonly number[], width: number): { digits: number[]; carry: boolean } {
+  const digits = Array.from({ length: width }, () => 0);
+  let carry = 0;
+  for (let i = 0; i < width; i += 1) {
+    const sum = (left[i] ?? 0) + (right[i] ?? 0) + carry;
+    digits[i] = sum % 10;
+    carry = Math.floor(sum / 10);
+  }
+  return { digits, carry: carry !== 0 };
+}
+
+function subMag(big: readonly number[], small: readonly number[], width: number): number[] {
+  const digits = Array.from({ length: width }, () => 0);
+  let borrow = 0;
+  for (let i = 0; i < width; i += 1) {
+    let diff = (big[i] ?? 0) - (small[i] ?? 0) - borrow;
+    if (diff < 0) {
+      diff += 10;
+      borrow = 1;
+    } else borrow = 0;
+    digits[i] = diff;
+  }
+  return digits;
+}
+
+/** 十位灯环逐位接收脉冲。同号相加时进位转过最高位，只留下低十位。 */
+function combineAcc(dst: Accumulator, src: Accumulator, subtract: boolean): Accumulator {
+  const srcSign: Sign = subtract ? (src.sign === 1 ? -1 : 1) : src.sign;
+  const leftSign: Sign = magZero(dst.digits) ? 1 : dst.sign;
+  const rightSign: Sign = magZero(src.digits) ? 1 : srcSign;
+  if (leftSign === rightSign) {
+    const added = addMag(dst.digits, src.digits, DECADES);
+    return { digits: added.digits, sign: magZero(added.digits) ? 1 : leftSign };
+  }
+  const order = cmpMag(dst.digits, src.digits);
+  if (order === 0) return blankAcc();
+  if (order > 0) return { digits: subMag(dst.digits, src.digits, DECADES), sign: leftSign };
+  return { digits: subMag(src.digits, dst.digits, DECADES), sign: rightSign };
+}
+
+function mulDecades(left: readonly number[], right: readonly number[]): number[] {
+  const prod = Array.from({ length: DECADES * 2 }, () => 0);
+  for (let i = 0; i < DECADES; i += 1) {
+    let carry = 0;
+    for (let j = 0; j < DECADES; j += 1) {
+      const sum = prod[i + j] + left[j] * right[i] + carry;
+      prod[i + j] = sum % 10;
+      carry = Math.floor(sum / 10);
+    }
+    let at = i + DECADES;
+    while (carry > 0) {
+      const sum = prod[at] + carry;
+      prod[at] = sum % 10;
+      carry = Math.floor(sum / 10);
+      at += 1;
+    }
+  }
+  return prod;
+}
+
+function signedDigits(digits: number[], negative: boolean): Accumulator {
+  return { digits, sign: magZero(digits) || !negative ? 1 : -1 };
+}
+
+/** 除法器用反复相减得到每一位商。 */
+function divDecades(numerator: readonly number[], denominator: readonly number[]): { quot: number[]; rem: number[] } {
+  let rem = Array.from({ length: DECADES }, () => 0);
+  const quot = Array.from({ length: DECADES }, () => 0);
+  for (let step = 0; step < DECADES; step += 1) {
+    const shifted = Array.from({ length: DECADES + 1 }, () => 0);
+    shifted[0] = numerator[DECADES - 1 - step];
+    for (let i = 0; i < DECADES; i += 1) shifted[i + 1] = rem[i];
+    let count = 0;
+    let cur = shifted;
+    while (count < 10 && cmpMag(cur, denominator) >= 0) {
+      cur = subMag(cur, denominator, cur.length);
+      count += 1;
+    }
+    rem = Array.from({ length: DECADES }, (_, i) => cur[i] ?? 0);
+    quot[DECADES - 1 - step] = count;
+  }
+  return { quot, rem };
+}
+
+/** 开方器从高位每两位求一位整数根。 */
+function sqrtDecades(digits: readonly number[]): number[] {
+  let root = 0;
+  let rem = 0;
+  for (let pair = 4; pair >= 0; pair -= 1) {
+    rem = rem * 100 + digits[pair * 2 + 1] * 10 + digits[pair * 2];
+    let place = 0;
+    while (place < 9 && (20 * root + (place + 1)) * (place + 1) <= rem) place += 1;
+    rem -= (20 * root + place) * place;
+    root = root * 10 + place;
+  }
+  return fromValue(root).digits;
+}
+
 function fail(state: EniacState, message: string, executed: number): EniacState {
   return {
     ...state,
@@ -266,54 +377,37 @@ export function stepEniac(state: EniacState): EniacState {
       focus = pulse.acc;
       trace = `把常数 ${pulse.value} 拨进累加器 ${pulse.acc + 1}。个位的灯环停在 ${acc[pulse.acc].digits[0]}。`;
     } else if (pulse.op === "ADD" || pulse.op === "SUB") {
-      const left = accValue(acc[pulse.dst]);
-      const right = accValue(acc[pulse.src]);
-      const value = pulse.op === "ADD" ? left + right : left - right;
-      acc[pulse.dst] = fromValue(value);
+      acc[pulse.dst] = combineAcc(acc[pulse.dst], acc[pulse.src], pulse.op === "SUB");
       focus = pulse.dst;
-      trace = `累加器 ${pulse.src + 1} 送出 ${formatAcc(state.acc[pulse.src])}，累加器 ${pulse.dst + 1} ${pulse.op === "ADD" ? "加上" : "减去"}它，得到 ${formatAcc(acc[pulse.dst])}。`;
+      trace = `累加器 ${pulse.src + 1} 按十位灯环送出 ${formatAcc(state.acc[pulse.src])}，累加器 ${pulse.dst + 1} ${pulse.op === "ADD" ? "加上" : "减去"}它，得到 ${formatAcc(acc[pulse.dst])}。`;
     } else if (pulse.op === "MUL") {
-      const product = BigInt(accValue(acc[pulse.icand])) * BigInt(accValue(acc[pulse.ier]));
-      const negative = product < 0n;
-      const mag = negative ? -product : product;
-      const low = mag % 10_000_000_000n;
-      const high = mag / 10_000_000_000n;
-      const sign = negative ? -1 : 1;
-      acc[pulse.low] = fromValue(Number(low) * sign);
-      acc[pulse.high] = fromValue(Number(high) * sign);
+      const product = mulDecades(acc[pulse.icand].digits, acc[pulse.ier].digits);
+      const negative = !magZero(product) && acc[pulse.icand].sign !== acc[pulse.ier].sign;
+      acc[pulse.low] = signedDigits(product.slice(0, DECADES), negative);
+      acc[pulse.high] = signedDigits(product.slice(DECADES), negative);
       focus = pulse.low;
-      trace = `乘法器：累加器 ${pulse.icand + 1} × 累加器 ${pulse.ier + 1}。低十位进累加器 ${pulse.low + 1}，高十位进累加器 ${pulse.high + 1}，积是 ${product.toString()}。`;
+      trace = `乘法器逐位做部分积：累加器 ${pulse.icand + 1} × 累加器 ${pulse.ier + 1}。低十位 ${formatAcc(acc[pulse.low])} 进累加器 ${pulse.low + 1}，高十位 ${formatAcc(acc[pulse.high])} 进累加器 ${pulse.high + 1}。`;
     } else if (pulse.op === "DIV") {
-      const numerator = BigInt(accValue(acc[pulse.num]));
-      const denominator = BigInt(accValue(acc[pulse.den]));
-      if (denominator === 0n) throw new MachineFault("除法器的除数是 0");
-      const quotient = numerator / denominator;
-      const remainder = numerator % denominator;
-      acc[pulse.quot] = fromValue(Number(quotient));
-      acc[pulse.num] = fromValue(Number(remainder));
+      if (magZero(acc[pulse.den].digits)) throw new MachineFault("除法器的除数是 0");
+      const divided = divDecades(acc[pulse.num].digits, acc[pulse.den].digits);
+      const negative = !magZero(acc[pulse.num].digits) && acc[pulse.num].sign !== acc[pulse.den].sign;
+      acc[pulse.quot] = signedDigits(divided.quot, negative);
+      acc[pulse.num] = signedDigits(divided.rem, acc[pulse.num].sign < 0);
       focus = pulse.quot;
-      trace = `除法器：${numerator.toString()} ÷ ${denominator.toString()}。商 ${quotient.toString()} 进累加器 ${pulse.quot + 1}，余数 ${remainder.toString()} 留在累加器 ${pulse.num + 1}。`;
+      trace = `除法器反复相减：商 ${formatAcc(acc[pulse.quot])} 进累加器 ${pulse.quot + 1}，余数 ${formatAcc(acc[pulse.num])} 留在累加器 ${pulse.num + 1}。`;
     } else if (pulse.op === "SQRT") {
-      const value = accValue(acc[pulse.src]);
-      if (value < 0) throw new MachineFault("开方器不接受负数");
-      const rad = BigInt(value);
-      let rootN = rad;
-      let next = (rootN + 1n) / 2n;
-      while (next < rootN) {
-        rootN = next;
-        next = (rootN + rad / rootN) / 2n;
-      }
-      const root = Number(rootN);
-      acc[pulse.dest] = fromValue(root);
+      if (acc[pulse.src].sign < 0 && !magZero(acc[pulse.src].digits)) throw new MachineFault("开方器不接受负数");
+      const root = sqrtDecades(acc[pulse.src].digits);
+      acc[pulse.dest] = { digits: root, sign: 1 };
       focus = pulse.dest;
-      trace = `开方器：累加器 ${pulse.src + 1} 的 ${value} 开方，整数根 ${root} 进累加器 ${pulse.dest + 1}。`;
+      trace = `开方器从高位每两位求一位，整数根 ${formatAcc(acc[pulse.dest])} 进累加器 ${pulse.dest + 1}。`;
     } else if (pulse.op === "FTSET") {
       tables[pulse.table][pulse.index] = pulse.value;
       trace = `函数表 ${pulse.table + 1} 的自变量 ${pulse.index} 拨成 ${pulse.value}。`;
     } else if (pulse.op === "FT") {
-      const argument = Math.abs(accValue(acc[pulse.arg])) % 100;
+      const argument = acc[pulse.arg].digits[1] * 10 + acc[pulse.arg].digits[0];
       const stored = tables[pulse.table][argument] ?? 0;
-      const value = accValue(acc[pulse.arg]) < 0 ? -stored : stored;
+      const value = acc[pulse.arg].sign < 0 && !magZero(acc[pulse.arg].digits) ? -stored : stored;
       acc[pulse.dest] = fromValue(value);
       focus = pulse.dest;
       trace = `函数表 ${pulse.table + 1} 按自变量 ${argument} 送出 ${value}，进入累加器 ${pulse.dest + 1}。`;

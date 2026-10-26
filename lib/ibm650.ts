@@ -405,7 +405,7 @@ export function accValue(acc: Acc): number {
   return value * acc.sign;
 }
 
-function isZero(mag: number[]): boolean {
+function isZero(mag: readonly number[]): boolean {
   return mag.every((digit) => digit === 0);
 }
 
@@ -422,38 +422,123 @@ function fail(state: IbmState, message: string, executed: number): IbmState {
 }
 
 const OP_BY_CODE = new Map<number, OpName>(Object.entries(OPS).map(([name, spec]) => [spec.code, name as OpName]));
-const TEN = 10n;
-const TEN10 = 10_000_000_000n;
-const TEN20 = TEN10 * TEN10;
 
-function magToBig(digits: readonly number[], width = digits.length): bigint {
-  let value = 0n;
-  for (let i = width - 1; i >= 0; i -= 1) value = value * TEN + BigInt(digits[i] ?? 0);
-  return value;
-}
-
-function wordBig(word: Word, absolute = false): bigint {
-  const magnitude = magToBig(word.digits, WIDTH);
-  if (absolute) return magnitude;
-  return magnitude * BigInt(word.sign);
-}
-
-function accBig(acc: Acc): bigint {
-  return magToBig(acc.mag, 20) * BigInt(acc.sign);
-}
-
-function setAcc(value: bigint): { acc: Acc; overflow: boolean } {
-  const negative = value < 0n;
-  const magnitude = negative ? -value : value;
-  const overflow = magnitude >= TEN20;
-  const kept = magnitude % TEN20;
-  const mag = Array.from({ length: 20 }, () => 0);
-  let rest = kept;
-  for (let i = 0; i < 20; i += 1) {
-    mag[i] = Number(rest % TEN);
-    rest /= TEN;
+function cmpMag(left: readonly number[], right: readonly number[]): number {
+  const width = Math.max(left.length, right.length);
+  for (let i = width - 1; i >= 0; i -= 1) {
+    const diff = (left[i] ?? 0) - (right[i] ?? 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
   }
-  return { acc: { mag, sign: kept === 0n ? 1 : negative ? -1 : 1 }, overflow };
+  return 0;
+}
+
+function addMagDigits(left: readonly number[], right: readonly number[], width: number): { mag: number[]; carry: boolean } {
+  const mag = Array.from({ length: width }, () => 0);
+  let carry = 0;
+  for (let i = 0; i < width; i += 1) {
+    const sum = (left[i] ?? 0) + (right[i] ?? 0) + carry;
+    mag[i] = sum % 10;
+    carry = Math.floor(sum / 10);
+  }
+  return { mag, carry: carry !== 0 };
+}
+
+function subMagDigits(big: readonly number[], small: readonly number[], width: number): number[] {
+  const mag = Array.from({ length: width }, () => 0);
+  let borrow = 0;
+  for (let i = 0; i < width; i += 1) {
+    let diff = (big[i] ?? 0) - (small[i] ?? 0) - borrow;
+    if (diff < 0) {
+      diff += 10;
+      borrow = 1;
+    } else borrow = 0;
+    mag[i] = diff;
+  }
+  return mag;
+}
+
+function placeWord(word: Word, shift: number): number[] {
+  const mag = Array.from({ length: 20 }, () => 0);
+  for (let i = 0; i < WIDTH; i += 1) mag[i + shift] = word.digits[i];
+  return mag;
+}
+
+function loadSigned(mag: number[], sign: Sign): { acc: Acc; overflow: boolean } {
+  return { acc: { mag, sign: isZero(mag) ? 1 : sign }, overflow: false };
+}
+
+function addSigned(acc: Acc, mag: number[], sign: Sign): { acc: Acc; overflow: boolean } {
+  const accSign: Sign = isZero(acc.mag) ? 1 : acc.sign;
+  const addSign: Sign = isZero(mag) ? 1 : sign;
+  if (accSign === addSign) {
+    const added = addMagDigits(acc.mag, mag, 20);
+    return { acc: { mag: added.mag, sign: isZero(added.mag) ? 1 : accSign }, overflow: added.carry };
+  }
+  const order = cmpMag(acc.mag, mag);
+  if (order === 0) return { acc: blankAcc(), overflow: false };
+  if (order > 0) return { acc: { mag: subMagDigits(acc.mag, mag, 20), sign: accSign }, overflow: false };
+  return { acc: { mag: subMagDigits(mag, acc.mag, 20), sign: addSign }, overflow: false };
+}
+
+function opposite(sign: Sign, mag: readonly number[]): Sign {
+  if (isZero(mag)) return 1;
+  return sign === 1 ? -1 : 1;
+}
+
+function mulDigits(left: readonly number[], right: readonly number[]): number[] {
+  const prod = Array.from({ length: 20 }, () => 0);
+  for (let i = 0; i < right.length; i += 1) {
+    let carry = 0;
+    for (let j = 0; j < left.length; j += 1) {
+      const sum = prod[i + j] + left[j] * right[i] + carry;
+      prod[i + j] = sum % 10;
+      carry = Math.floor(sum / 10);
+    }
+    let at = i + left.length;
+    while (carry > 0) {
+      const sum = prod[at] + carry;
+      prod[at] = sum % 10;
+      carry = Math.floor(sum / 10);
+      at += 1;
+    }
+  }
+  return prod;
+}
+
+/** 从高位起逐位试商。前十位商不是零就是溢出，低十位商和余数留下。 */
+function divMag20by10(dividend: readonly number[], divisor: readonly number[]): { quot: number[]; rem: number[]; overflow: boolean } {
+  let rem = Array.from({ length: WIDTH }, () => 0);
+  const quot = Array.from({ length: 20 }, () => 0);
+  for (let step = 0; step < 20; step += 1) {
+    const shifted = Array.from({ length: WIDTH + 1 }, () => 0);
+    shifted[0] = dividend[19 - step];
+    for (let i = 0; i < WIDTH; i += 1) shifted[i + 1] = rem[i];
+    let count = 0;
+    let cur = shifted;
+    while (count < 10 && cmpMag(cur, divisor) >= 0) {
+      cur = subMagDigits(cur, divisor, cur.length);
+      count += 1;
+    }
+    rem = Array.from({ length: WIDTH }, (_, i) => cur[i] ?? 0);
+    quot[19 - step] = count;
+  }
+  return { quot: quot.slice(0, WIDTH), rem, overflow: quot.slice(WIDTH).some((digit) => digit !== 0) };
+}
+
+function compareWords(left: Word, right: Word): number {
+  const leftZero = isZero(left.digits);
+  const rightZero = isZero(right.digits);
+  if (leftZero && rightZero) return 0;
+  if (!leftZero && !rightZero && left.sign !== right.sign) return left.sign > right.sign ? 1 : -1;
+  if (leftZero) return right.sign < 0 ? 1 : -1;
+  if (rightZero) return left.sign < 0 ? -1 : 1;
+  const mag = cmpMag(left.digits, right.digits);
+  return left.sign < 0 ? -mag : mag;
+}
+
+export function accText(acc: Acc): string {
+  const digits = acc.mag.slice().reverse().join("").replace(/^0+(?=\d)/, "");
+  return `${acc.sign < 0 ? "-" : ""}${digits}`;
 }
 
 function shiftCount(data: number): number {
@@ -487,11 +572,10 @@ export function step650(state: IbmState): IbmState {
   let cardAt = state.cardAt;
   const punch = state.punch.map((card) => card.map(cloneWord));
 
-  const apply = (value: bigint, clearRemainder = true) => {
-    const placed = setAcc(value);
+  const commit = (placed: { acc: Acc; overflow: boolean }) => {
     acc = placed.acc;
     if (placed.overflow) overflow = true;
-    if (clearRemainder) remainderSign = null;
+    remainderSign = null;
   };
 
   try {
@@ -541,8 +625,16 @@ export function step650(state: IbmState): IbmState {
         const shifted = Array.from({ length: 20 }, () => 0);
         for (let i = 0; i + count < 20; i += 1) shifted[i] = acc.mag[i + count];
         acc = { mag: shifted, sign: acc.sign };
-        if (op === "SRD" && roundDigit >= 5) apply(accBig(acc) + BigInt(acc.sign));
-        trace = `累加器右移 ${count} 位${op === "SRD" ? "，并按舍入位收一下" : ""}。下一条在 ${pc}。`;
+        if (op === "SRD" && roundDigit >= 5) {
+          const bumped = addMagDigits(acc.mag, [1], 20);
+          if (bumped.carry) {
+            acc = blankAcc();
+            overflow = true;
+          } else {
+            acc = { mag: bumped.mag, sign: isZero(bumped.mag) ? 1 : acc.sign };
+          }
+        }
+        trace = `累加器右移 ${count} 位${op === "SRD" ? "，舍入位不小于 5 时个位再加一" : ""}。下一条在 ${pc}。`;
       }
       remainderSign = null;
     } else if (op === "RD" || op === "PCH") {
@@ -559,19 +651,26 @@ export function step650(state: IbmState): IbmState {
     } else if (op === "TLU") {
       const band = Math.floor(decoded.data / 50) * 50;
       const limit = Math.min(decoded.data + 48, band + 50, DRUM_WORDS);
-      const argument = wordValue(distributor);
+      const argument = distributor;
       let found = -1;
       for (let addr = decoded.data; addr < limit; addr += 1) {
-        if (wordValue(mem[addr]) >= argument) {
+        if (compareWords(mem[addr], argument) >= 0) {
           found = addr;
           break;
         }
       }
       if (found < 0) {
         overflow = true;
-        trace = `分配器里的 ${argument} 比这条带上的表项都大，溢出灯亮。下一条在 ${pc}。`;
+        trace = `分配器里的 ${wordValue(argument)} 比这条带上的表项都大，溢出灯亮。下一条在 ${pc}。`;
       } else {
-        apply(BigInt(found));
+        const mag = Array.from({ length: 20 }, () => 0);
+        let rest = found;
+        for (let i = 0; i < 4; i += 1) {
+          mag[i] = rest % 10;
+          rest = Math.floor(rest / 10);
+        }
+        acc = loadSigned(mag, 1).acc;
+        remainderSign = null;
         trace = `查到地址 ${found} 的 ${formatWord(mem[found])}。地址留在下半。下一条在 ${pc}。`;
       }
     } else if (OPS[op].kind === "branch") {
@@ -594,45 +693,36 @@ export function step650(state: IbmState): IbmState {
     } else {
       const operand = mem[decoded.data];
       distributor = cloneWord(operand);
-      const operandValue = wordBig(operand);
-      const absolute = wordBig(operand, true);
+      const lower = placeWord(operand, 0);
+      const upper = placeWord(operand, 10);
       if (op === "MULT") {
-        const multiplicand = magToBig(acc.mag.slice(10), WIDTH) * BigInt(acc.sign);
-        apply(multiplicand * operandValue);
-        trace = `上半 ${multiplicand.toString()} 乘以 ${formatWord(operand)}，二十位积留在累加器。下一条在 ${pc}。`;
+        const product = mulDigits(acc.mag.slice(10, 20), operand.digits);
+        acc = { mag: product, sign: !isZero(product) && acc.sign !== operand.sign ? -1 : 1 };
+        remainderSign = null;
+        trace = `上半与 ${formatWord(operand)} 逐位做部分积，二十位积是 ${accText(acc)}。下一条在 ${pc}。`;
       } else if (op === "DIV" || op === "DIVRU") {
-        const dividend = op === "DIV" ? accBig(acc) : magToBig(acc.mag.slice(0, WIDTH), WIDTH) * BigInt(acc.sign);
-        if (operandValue === 0n) throw new MachineFault("除数是 0");
-        const quotient = dividend / operandValue;
-        const remainder = dividend % operandValue;
-        if (quotient <= -TEN10 || quotient >= TEN10) overflow = true;
-        const quotientMag = quotient < 0n ? -quotient : quotient;
-        const remainderMag = remainder < 0n ? -remainder : remainder;
-        const mag = Array.from({ length: 20 }, () => 0);
-        let q = quotientMag % TEN10;
-        let r = remainderMag % TEN10;
-        for (let i = 0; i < WIDTH; i += 1) {
-          mag[i] = Number(q % TEN);
-          mag[i + WIDTH] = Number(r % TEN);
-          q /= TEN;
-          r /= TEN;
-        }
-        acc = { mag, sign: quotientMag === 0n ? 1 : quotient < 0n ? -1 : 1 };
-        remainderSign = remainderMag === 0n ? 1 : remainder < 0n ? -1 : 1;
-        trace = `${dividend.toString()} ÷ ${operandValue.toString()}。商在下半，余数在上半。下一条在 ${pc}。`;
-      } else if (op === "RAU") apply(operandValue * TEN10);
-      else if (op === "RSU") apply(-(operandValue * TEN10));
-      else if (op === "AU") apply(accBig(acc) + operandValue * TEN10);
-      else if (op === "SU") apply(accBig(acc) - operandValue * TEN10);
-      else if (op === "RAL") apply(operandValue);
-      else if (op === "RSL" || op === "RSABL") apply(op === "RSABL" ? -absolute : -operandValue);
-      else if (op === "ALO") apply(accBig(acc) + operandValue);
-      else if (op === "SLO") apply(accBig(acc) - operandValue);
-      else if (op === "AABL") apply(accBig(acc) + absolute);
-      else if (op === "SABL") apply(accBig(acc) - absolute);
-      else if (op === "RAABL") apply(absolute);
+        if (isZero(operand.digits)) throw new MachineFault("除数是 0");
+        const dividend = op === "DIV" ? acc.mag.slice() : [...acc.mag.slice(0, WIDTH), ...Array.from({ length: WIDTH }, () => 0)];
+        const divided = divMag20by10(dividend, operand.digits);
+        const mag = Array.from({ length: 20 }, (_, i) => (i < WIDTH ? divided.quot[i] : divided.rem[i - WIDTH]));
+        acc = { mag, sign: !isZero(divided.quot) && acc.sign !== operand.sign ? -1 : 1 };
+        remainderSign = !isZero(divided.rem) && acc.sign < 0 ? -1 : 1;
+        if (divided.overflow) overflow = true;
+        trace = `从高位逐位试商。商在下半，余数在上半。下一条在 ${pc}。`;
+      } else if (op === "RAU") commit(loadSigned(upper, operand.sign));
+      else if (op === "RSU") commit(loadSigned(upper, opposite(operand.sign, operand.digits)));
+      else if (op === "AU") commit(addSigned(acc, upper, operand.sign));
+      else if (op === "SU") commit(addSigned(acc, upper, opposite(operand.sign, operand.digits)));
+      else if (op === "RAL") commit(loadSigned(lower, operand.sign));
+      else if (op === "RSL") commit(loadSigned(lower, opposite(operand.sign, operand.digits)));
+      else if (op === "RSABL") commit(loadSigned(lower, opposite(1, operand.digits)));
+      else if (op === "ALO") commit(addSigned(acc, lower, operand.sign));
+      else if (op === "SLO") commit(addSigned(acc, lower, opposite(operand.sign, operand.digits)));
+      else if (op === "AABL") commit(addSigned(acc, lower, 1));
+      else if (op === "SABL") commit(addSigned(acc, lower, opposite(1, operand.digits)));
+      else if (op === "RAABL") commit(loadSigned(lower, 1));
       else throw new MachineFault(`操作 ${op} 没有执行步骤`);
-      if (!trace) trace = `${OPS[op].title} ${formatWord(operand)}。累加器现在是 ${accValue(acc)}。下一条在 ${pc}。`;
+      if (!trace) trace = `${OPS[op].title} ${formatWord(operand)}。累加器现在是 ${accText(acc)}。下一条在 ${pc}。`;
     }
   } catch (error) {
     const message = error instanceof MachineFault ? error.message : "执行失败";

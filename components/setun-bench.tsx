@@ -12,15 +12,17 @@ import {
   ZONE_WORDS,
 } from "@/lib/setun";
 import { toInt } from "@/lib/trit";
-import { BenchShell, CodingSheet, ErrorList, ProgramBar, TraceBox, Transport } from "./bench-layout";
-import { InstructionManual } from "./manuals";
+import { BenchShell, CodingSheet, ErrorList, IdleBench, ProgramBar, TraceBox, Transport } from "./bench-layout";
 import { sameWord, Trits } from "./trits";
 import { useMachine } from "./use-machine";
 
 export function SetunBench() {
   const machine = useMachine("setun", bootSetun, stepSetun, runSetun);
-  if (machine.phase !== "ready" || !machine.state) {
+  if (machine.phase !== "ready") {
     return <p className="text-sm text-muted-foreground">{machine.failure || "正在打开本地汇编…"}</p>;
+  }
+  if (!machine.state) {
+    return <IdleBench sheetLabel="Сетунь 程序" machine={machine} />;
   }
   const { state } = machine;
   const focus = state.executedAddr ?? state.C;
@@ -29,7 +31,6 @@ export function SetunBench() {
 
   return (
     <BenchShell
-      lecture={<SetunLecture />}
       toolbar={
         <>
           <ProgramBar
@@ -39,6 +40,7 @@ export function SetunBench() {
             path={machine.path}
             onPick={machine.openFile}
             onSave={machine.save}
+            onCustomize={machine.customize}
           />
           <Transport
             dirty={machine.dirty}
@@ -151,26 +153,5 @@ export function SetunBench() {
         </div>
       }
     />
-  );
-}
-
-function SetunLecture() {
-  return (
-    <div className="space-y-3">
-      <h2 className="font-heading text-xl">Сетунь，1958</h2>
-      <p>
-        莫斯科大学的 Брусенцов 用磁心做了这台小机器。一位不是 0 和 1，而是平衡三进制的 +1、0、−1。负数不必另设符号位，把每一位的 + 和 − 对调就是取负。
-      </p>
-      <p>
-        程序是单地址指令。九位里，高五位是地址，中间三位是操作码，最低一位是变址：为 + 就加上寄存器 F，为 − 就减去。算术结果留在 18 位寄存器 S，从内存读入的九位放在 S 的高半，写回时也只写高半。
-      </p>
-      <p>
-        条件转移不当场比较两个数。它看上一趟运算留下的符号 w，只有 +、0、− 三种。所以循环里要让「改 F」紧挨着转移，w 才是你想看的那个符号。
-      </p>
-      <p>
-        右移丢掉末位，就是舍入到最近的整数。左移是乘 3。MUL 做算术乘法，TMUL 仍是按位三值乘。
-      </p>
-      <InstructionManual machine="setun" />
-    </div>
   );
 }

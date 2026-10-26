@@ -76,8 +76,14 @@ export function useMachine<P, S extends { halted: boolean; error?: string }>(
         if (cancel || current !== ticket.current) return;
         setCatalog(files);
         if (!files[0]) {
-          setFailure("这个目录里还没有汇编文件");
-          setPhase("failed");
+          setFile("");
+          setSource("");
+          setDirty(false);
+          setErrors([]);
+          setProgram(null);
+          setState(null);
+          setFailure("");
+          setPhase("ready");
           return;
         }
         const opened = await fetch(`/api/programs?machine=${machine}&file=${encodeURIComponent(files[0].file)}`);
@@ -189,6 +195,18 @@ export function useMachine<P, S extends { halted: boolean; error?: string }>(
     },
     openFile(nextFile: string) {
       void openFile(nextFile);
+    },
+    customize() {
+      ticket.current += 1;
+      setFile("");
+      setSource("");
+      setDirty(false);
+      setErrors([]);
+      setProgram(null);
+      setState(null);
+      setFailure("");
+      setBusy(false);
+      setPhase("ready");
     },
     async save(title: string) {
       const response = await fetch("/api/programs", {

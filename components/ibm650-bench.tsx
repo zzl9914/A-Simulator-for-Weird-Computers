@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  accValue,
+  accText,
   biquinary,
   boot650,
   decodeInstruction,
@@ -12,14 +12,16 @@ import {
   step650,
   wordValue,
 } from "@/lib/ibm650";
-import { BenchShell, CodingSheet, ErrorList, ProgramBar, TraceBox, Transport } from "./bench-layout";
-import { InstructionManual } from "./manuals";
+import { BenchShell, CodingSheet, ErrorList, IdleBench, ProgramBar, TraceBox, Transport } from "./bench-layout";
 import { useMachine } from "./use-machine";
 
 export function Ibm650Bench() {
   const machine = useMachine("ibm650", boot650, step650, run650);
-  if (machine.phase !== "ready" || !machine.state) {
+  if (machine.phase !== "ready") {
     return <p className="text-sm text-muted-foreground">{machine.failure || "正在打开本地汇编…"}</p>;
+  }
+  if (!machine.state) {
+    return <IdleBench sheetLabel="IBM 650 程序" short machine={machine} />;
   }
   const { state } = machine;
   const focus = state.executed ?? state.pc;
@@ -28,8 +30,6 @@ export function Ibm650Bench() {
 
   return (
     <BenchShell
-      stacked
-      lecture={<IbmLecture />}
       toolbar={
         <>
           <ProgramBar
@@ -39,6 +39,7 @@ export function Ibm650Bench() {
             path={machine.path}
             onPick={machine.openFile}
             onSave={machine.save}
+            onCustomize={machine.customize}
           />
           <Transport
             dirty={machine.dirty}
@@ -68,7 +69,7 @@ export function Ibm650Bench() {
       console={
         <div>
           <p className="text-xs tracking-widest text-muted-foreground">累加器下半 · 二五进制</p>
-          <p className="font-heading text-3xl tabular-nums">{accValue(state.acc)}</p>
+          <p className="font-heading text-3xl tabular-nums">{accText(state.acc)}</p>
           <BiQuinaryWord word={lower} />
           <p className="mt-2 text-xs text-muted-foreground">分配器 {formatWord(state.distributor)} · 数值 {wordValue(state.distributor)}</p>
           {lineNo > 0 ? (
@@ -136,20 +137,5 @@ function BiQuinaryWord({ word }: { word: { digits: number[] } }) {
           );
         })}
     </div>
-  );
-}
-
-function IbmLecture() {
-  return (
-    <div className="space-y-2">
-        <p>
-          1954 年交付的 IBM 650 把一个十进制数字拆成两组灯：两盏里亮一盏，表示 0 或 5；五盏里亮一盏，表示 0、1、2、3、4。7 是「5」那盏加上「2」那盏。这叫二五进制。它和 5421 不一样：5421 里的 3 是权 2 和权 1 同时亮，二五进制里的 3 只亮标着 3 的那一盏。
-        </p>
-      <p>
-        内存是 2000 字的磁鼓，这是最常见的原机容量，另外也有 1000 和 4000 字的型号。指令本身有十位：两位操作码、四位数据地址、四位下一条指令的地址。不能做完再自动加一，否则鼓已经转过去了。真机上的 SOAP 会替你把下一条安排到鼓正转到的位置；这里没写地址时按纸上的下一行补，也不模拟鼓的等待。
-      </p>
-        <p>累加器有二十位，分上下两半。进出累加器的数都要经过十位的分配器。</p>
-        <InstructionManual machine="ibm650" />
-      </div>
   );
 }

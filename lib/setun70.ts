@@ -1,4 +1,4 @@
-import { mustFromInt, toInt, tryFromInt, type Trit, zeros } from "./trit";
+import { addTrits, flipTrits, mulTrits, mustFromInt, shiftBalanced, toInt, tryFromInt, type Trit, zeros } from "./trit";
 
 export const TRYTE = 6;
 export const STACK_TRITS = 18;
@@ -547,6 +547,27 @@ function pop(stack: number[], what: string): number {
   return value;
 }
 
+function stackAdd(left: number, right: number, subtract: boolean): number {
+  const added = addTrits(
+    mustFromInt(left, STACK_TRITS),
+    subtract ? flipTrits(mustFromInt(right, STACK_TRITS)) : mustFromInt(right, STACK_TRITS),
+  );
+  if (added.overflow) throw new Error("结果放不进十八位。");
+  return toInt(added.sum);
+}
+
+function stackMul(left: number, right: number): number {
+  const product = mulTrits(mustFromInt(left, STACK_TRITS), mustFromInt(right, STACK_TRITS), STACK_TRITS);
+  if (product.overflow) throw new Error("乘积放不进十八位。");
+  return toInt(product.product);
+}
+
+function stackShift(value: number, count: number): number {
+  const shifted = shiftBalanced(mustFromInt(value, STACK_TRITS), count);
+  if (shifted.overflow) throw new Error("左移把非零的三进制位推出了十八位。");
+  return toInt(shifted.trits);
+}
+
 function decodeAddress(tryte: readonly Trit[]): { mode: "value" | "addr"; window: number; slot: number } | null {
   if (tryte[0] !== 1 && tryte[0] !== -1) return null;
   const window = WINDOW_TRIT.indexOf(tryte[1]);
@@ -632,26 +653,23 @@ export function stepPostfix(state: PostfixState): PostfixState {
         trace = `JMP 转到地址 ${nextPc}。`;
       } else if (op === "sadd" || op === "ssub") {
         const value = pop(stack, "栈顶");
-        regS = op === "sadd" ? regS + value : regS - value;
-        if (!tryFromInt(regS, STACK_TRITS)) throw new Error(`寄存器 S 的 ${regS} 放不进十八位。`);
+        regS = stackAdd(regS, value, op === "ssub");
         trace = `S ${op === "sadd" ? "+" : "−"} ${value} = ${regS}。`;
       } else if (op === "tdn") {
         if (stack.length === 0) throw new Error("栈是空的，没法取负。");
-        stack[stack.length - 1] = -stack[stack.length - 1];
+        stack[stack.length - 1] = stackAdd(0, stack[stack.length - 1], true);
         trace = `栈顶取负，现在是 ${stack[stack.length - 1]}。`;
       } else if (op === "lmul") {
         const value = pop(stack, "乘数");
         regR = regS;
-        regS = value * regR;
-        if (!tryFromInt(regS, STACK_TRITS)) throw new Error(`乘积 ${regS} 放不进十八位。`);
+        regS = stackMul(value, regR);
         trace = `${value} × R(${regR}) = ${regS}，留在寄存器 S。`;
       } else if (op === "shf") {
         const count = pop(stack, "移位数");
         if (stack.length === 0) throw new Error("栈是空的，没有可以移位的数。");
-        const shifted = count >= 0 ? stack[stack.length - 1] * 3 ** count : Math.trunc(stack[stack.length - 1] / 3 ** -count);
-        if (!tryFromInt(shifted, STACK_TRITS)) throw new Error(`移位结果 ${shifted} 放不进十八位。`);
+        const shifted = stackShift(stack[stack.length - 1], count);
         stack[stack.length - 1] = shifted;
-        trace = `栈顶按 ${count} 位移成 ${shifted}。`;
+        trace = `栈顶按 ${count} 位做平衡三进制移位，得到 ${shifted}。`;
       } else if (op === "halt") {
         halted = true;
         trace = "停机。结果留在栈顶。";
@@ -672,9 +690,9 @@ export function stepPostfix(state: PostfixState): PostfixState {
         trace = `交换栈顶两格：${second} 和 ${first}。`;
       } else if (op === "neg") {
         const value = pop(stack, "可取负的数");
-        if (!tryFromInt(-value, STACK_TRITS)) throw new Error(`${-value} 放不进三个 трайт。`);
-        stack.push(-value);
-        trace = `取负：${value} 变成 ${-value}。`;
+        const negated = stackAdd(0, value, true);
+        stack.push(negated);
+        trace = `取负：${value} 变成 ${negated}。`;
       } else if (op === "store") {
         const addr = pop(stack, "地址");
         const value = pop(stack, "要写入的数");
@@ -710,8 +728,7 @@ export function stepPostfix(state: PostfixState): PostfixState {
       } else {
         const right = pop(stack, "右操作数");
         const left = pop(stack, "左操作数");
-        const value = op === "add" ? left + right : op === "sub" ? left - right : left * right;
-        if (!tryFromInt(value, STACK_TRITS)) throw new Error(`结果 ${value} 放不进三个 трайт。`);
+        const value = op === "mul" ? stackMul(left, right) : stackAdd(left, right, op === "sub");
         stack.push(value);
         trace = `${left} ${op === "add" ? "+" : op === "sub" ? "−" : "×"} ${right} = ${value}，压回栈顶。`;
       }
