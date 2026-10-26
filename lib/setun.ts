@@ -666,14 +666,14 @@ export function stepSetun(state: SetunState): SetunState {
         if (!next) return fail(state, `变址 F 变成 ${sum}，超出五位三进制`, C);
         F = next;
         w = signOf(F);
-        trace = `F 加上地址 ${effective} 的短字 ${addend}，得到 ${sum}。w = ${fmtW(w)}。条件转移看的就是这个 w。${modNote}`;
+        trace = `F 加上地址 ${effective} 的短字 ${addend}，得到 ${sum}。w = ${fmtW(w)}。${modNote}`;
         break;
       }
       case "STC": {
         const written = writeShort(C);
         if (!written) return fail(state, "指令地址写不进短字", C);
         mem[effective] = written;
-        trace = `把当前指令地址 C = ${C} 按短字写入地址 ${effective}。真机存的是正在执行的这条，返回时要自己加一。${modNote}`;
+        trace = `把正在执行的这条地址 C = ${C} 写入地址 ${effective}。返回时要自己加一。${modNote}`;
         break;
       }
       case "SHF": {
@@ -697,7 +697,7 @@ export function stepSetun(state: SetunState): SetunState {
         const operand = widenHigh(cell());
         S = S.map((trit, index) => (trit * operand[index]) as Trit);
         w = signOf(S);
-        trace = `按位三值乘：S 的每一位乘上地址 ${effective} 的对应位。这不是算术乘法。w = ${fmtW(w)}。`;
+        trace = `按位相乘，没有进位。w = ${fmtW(w)}。`;
         break;
       }
       case "MUL":
@@ -737,7 +737,7 @@ export function stepSetun(state: SetunState): SetunState {
         if (!shift) return fail(state, "规格化的移位数存不进 S", C);
         S = widenHigh(shift);
         w = signOf(S);
-        trace = `规格化看最高两位：最高位不是 0 就右移，前两位都是 0 就左移。高九位写入地址 ${effective}，移位 ${count} 留在 S。w = ${fmtW(w)}。`;
+        trace = `规格化后的高九位写入地址 ${effective}，移位 ${count} 留在 S。w = ${fmtW(w)}。`;
         break;
       }
       case "ADDC": {

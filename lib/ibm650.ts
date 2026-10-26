@@ -93,16 +93,16 @@ const OPS: Record<OpName, { code: number; title: string; kind: OpKind }> = {
   RD: { code: 70, title: "读一张卡片", kind: "data" },
   PCH: { code: 71, title: "穿一张卡片", kind: "data" },
   TLU: { code: 84, title: "查表", kind: "data" },
-  BRD10: { code: 90, title: "分配器第 10 位是 8 或 9", kind: "branch" },
-  BRD9: { code: 91, title: "分配器第 9 位是 8 或 9", kind: "branch" },
-  BRD8: { code: 92, title: "分配器第 8 位是 8 或 9", kind: "branch" },
-  BRD7: { code: 93, title: "分配器第 7 位是 8 或 9", kind: "branch" },
-  BRD6: { code: 94, title: "分配器第 6 位是 8 或 9", kind: "branch" },
-  BRD5: { code: 95, title: "分配器第 5 位是 8 或 9", kind: "branch" },
-  BRD4: { code: 96, title: "分配器第 4 位是 8 或 9", kind: "branch" },
-  BRD3: { code: 97, title: "分配器第 3 位是 8 或 9", kind: "branch" },
-  BRD2: { code: 98, title: "分配器第 2 位是 8 或 9", kind: "branch" },
-  BRD1: { code: 99, title: "分配器第 1 位是 8 或 9", kind: "branch" },
+  BRD10: { code: 90, title: "分配器第 10 位是 8", kind: "branch" },
+  BRD1: { code: 91, title: "分配器第 1 位是 8", kind: "branch" },
+  BRD2: { code: 92, title: "分配器第 2 位是 8", kind: "branch" },
+  BRD3: { code: 93, title: "分配器第 3 位是 8", kind: "branch" },
+  BRD4: { code: 94, title: "分配器第 4 位是 8", kind: "branch" },
+  BRD5: { code: 95, title: "分配器第 5 位是 8", kind: "branch" },
+  BRD6: { code: 96, title: "分配器第 6 位是 8", kind: "branch" },
+  BRD7: { code: 97, title: "分配器第 7 位是 8", kind: "branch" },
+  BRD8: { code: 98, title: "分配器第 8 位是 8", kind: "branch" },
+  BRD9: { code: 99, title: "分配器第 9 位是 8", kind: "branch" },
 };
 
 const ALIASES: Record<string, OpName> = { BRMIN: "BMI", AL: "ALO", SL: "SLO", LD: "LDD", NOOP: "NOP" };
@@ -675,9 +675,10 @@ export function step650(state: IbmState): IbmState {
       }
     } else if (OPS[op].kind === "branch") {
       const upperZero = isZero(acc.mag.slice(10));
-      // 90 看最高位（第 10 位），99 看个位（第 1 位）。digits[0] 是个位，不是镜像。
-      const place = op.startsWith("BRD") ? 99 - decoded.op : -1;
-      const digit = place >= 0 ? distributor.digits[place] : 0;
+      // 原机操作码的个位就是位号，0 表示第 10 位。91 看个位，99 看第 9 位，只认数字 8。
+      const units = decoded.op % 10;
+      const place = units === 0 ? 9 : units - 1;
+      const digit = op.startsWith("BRD") ? distributor.digits[place] : 0;
       const taken =
         op === "BMI"
           ? acc.sign < 0
@@ -687,7 +688,7 @@ export function step650(state: IbmState): IbmState {
               ? !isZero(acc.mag)
               : op === "BROV"
                 ? overflow
-                : digit === 8 || digit === 9;
+                : digit === 8;
       if (op === "BROV" && taken) overflow = false;
       pc = taken ? decoded.data : decoded.next;
       trace = `${OPS[op].title}。${taken ? `转到数据地址 ${pc}` : `转到指令地址 ${pc}`}。`;
@@ -700,7 +701,7 @@ export function step650(state: IbmState): IbmState {
         const product = mulDigits(acc.mag.slice(10, 20), operand.digits);
         acc = { mag: product, sign: !isZero(product) && acc.sign !== operand.sign ? -1 : 1 };
         remainderSign = null;
-        trace = `上半与 ${formatWord(operand)} 逐位做部分积，二十位积是 ${accText(acc)}。下一条在 ${pc}。`;
+        trace = `上半 × ${formatWord(operand)}，二十位积是 ${accText(acc)}。下一条在 ${pc}。`;
       } else if (op === "DIV" || op === "DIVRU") {
         if (isZero(operand.digits)) throw new MachineFault("除数是 0");
         const dividend = op === "DIV" ? acc.mag.slice() : [...acc.mag.slice(0, WIDTH), ...Array.from({ length: WIDTH }, () => 0)];
@@ -711,7 +712,7 @@ export function step650(state: IbmState): IbmState {
         acc = { mag, sign: !quotientZero && dividendSign !== operand.sign ? -1 : 1 };
         remainderSign = !isZero(divided.rem) && dividendSign < 0 ? -1 : 1;
         if (divided.overflow) overflow = true;
-        trace = `从高位逐位试商。商在下半，余数在上半。下一条在 ${pc}。`;
+        trace = `商在下半，余数在上半，余数的符号跟被除数。下一条在 ${pc}。`;
       } else if (op === "RAU") commit(loadSigned(upper, operand.sign));
       else if (op === "RSU") commit(loadSigned(upper, opposite(operand.sign, operand.digits)));
       else if (op === "AU") commit(addSigned(acc, upper, operand.sign));

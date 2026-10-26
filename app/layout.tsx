@@ -25,7 +25,7 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "原型机模拟器",
-  description: "Сетунь、Сетунь-70、ENIAC、IBM 650 和 IBM 1401 的原型模拟。按原来的编码、容量和指令单步执行。",
+  description: "Сетунь、Сетунь-70、ENIAC、IBM 650 和 IBM 1401。按原来的编码、容量和指令单步执行。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

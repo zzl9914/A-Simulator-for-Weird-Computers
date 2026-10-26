@@ -669,7 +669,7 @@ export function stepPostfix(state: PostfixState): PostfixState {
         if (stack.length === 0) throw new Error("栈是空的，没有可以移位的数。");
         const shifted = stackShift(stack[stack.length - 1], count);
         stack[stack.length - 1] = shifted;
-        trace = `栈顶按 ${count} 位做平衡三进制移位，得到 ${shifted}。`;
+        trace = `栈顶移位 ${count} 位，得到 ${shifted}。`;
       } else if (op === "halt") {
         halted = true;
         trace = "停机。结果留在栈顶。";

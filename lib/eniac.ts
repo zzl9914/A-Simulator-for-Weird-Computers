@@ -379,14 +379,14 @@ export function stepEniac(state: EniacState): EniacState {
     } else if (pulse.op === "ADD" || pulse.op === "SUB") {
       acc[pulse.dst] = combineAcc(acc[pulse.dst], acc[pulse.src], pulse.op === "SUB");
       focus = pulse.dst;
-      trace = `累加器 ${pulse.src + 1} 按十位灯环送出 ${formatAcc(state.acc[pulse.src])}，累加器 ${pulse.dst + 1} ${pulse.op === "ADD" ? "加上" : "减去"}它，得到 ${formatAcc(acc[pulse.dst])}。`;
+      trace = `累加器 ${pulse.dst + 1} ${pulse.op === "ADD" ? "加上" : "减去"}累加器 ${pulse.src + 1} 的 ${formatAcc(state.acc[pulse.src])}，得到 ${formatAcc(acc[pulse.dst])}。`;
     } else if (pulse.op === "MUL") {
       const product = mulDecades(acc[pulse.icand].digits, acc[pulse.ier].digits);
       const negative = !magZero(product) && acc[pulse.icand].sign !== acc[pulse.ier].sign;
       acc[pulse.low] = signedDigits(product.slice(0, DECADES), negative);
       acc[pulse.high] = signedDigits(product.slice(DECADES), negative);
       focus = pulse.low;
-      trace = `乘法器逐位做部分积：累加器 ${pulse.icand + 1} × 累加器 ${pulse.ier + 1}。低十位 ${formatAcc(acc[pulse.low])} 进累加器 ${pulse.low + 1}，高十位 ${formatAcc(acc[pulse.high])} 进累加器 ${pulse.high + 1}。`;
+      trace = `${formatAcc(state.acc[pulse.icand])} × ${formatAcc(state.acc[pulse.ier])}。低十位 ${formatAcc(acc[pulse.low])} 进累加器 ${pulse.low + 1}，高十位 ${formatAcc(acc[pulse.high])} 进累加器 ${pulse.high + 1}。`;
     } else if (pulse.op === "DIV") {
       if (magZero(acc[pulse.den].digits)) throw new MachineFault("除法器的除数是 0");
       const divided = divDecades(acc[pulse.num].digits, acc[pulse.den].digits);
@@ -394,13 +394,13 @@ export function stepEniac(state: EniacState): EniacState {
       acc[pulse.quot] = signedDigits(divided.quot, negative);
       acc[pulse.num] = signedDigits(divided.rem, acc[pulse.num].sign < 0);
       focus = pulse.quot;
-      trace = `除法器反复相减：商 ${formatAcc(acc[pulse.quot])} 进累加器 ${pulse.quot + 1}，余数 ${formatAcc(acc[pulse.num])} 留在累加器 ${pulse.num + 1}。`;
+      trace = `商 ${formatAcc(acc[pulse.quot])} 进累加器 ${pulse.quot + 1}，余数 ${formatAcc(acc[pulse.num])} 留在累加器 ${pulse.num + 1}。`;
     } else if (pulse.op === "SQRT") {
       if (acc[pulse.src].sign < 0 && !magZero(acc[pulse.src].digits)) throw new MachineFault("开方器不接受负数");
       const root = sqrtDecades(acc[pulse.src].digits);
       acc[pulse.dest] = { digits: root, sign: 1 };
       focus = pulse.dest;
-      trace = `开方器从高位每两位求一位，整数根 ${formatAcc(acc[pulse.dest])} 进累加器 ${pulse.dest + 1}。`;
+      trace = `${formatAcc(state.acc[pulse.src])} 的整数平方根是 ${formatAcc(acc[pulse.dest])}，进累加器 ${pulse.dest + 1}。`;
     } else if (pulse.op === "FTSET") {
       tables[pulse.table][pulse.index] = pulse.value;
       trace = `函数表 ${pulse.table + 1} 的自变量 ${pulse.index} 拨成 ${pulse.value}。`;

@@ -1013,7 +1013,7 @@ export function stepDecimal(state: DecimalState): DecimalState {
         if (quotCells.some((addr) => addr < 0)) throw new MachineFault("商向左越过了地址 000");
         writeDigits(mem, quotCells, divided.quot, quotSign);
         touched.push(...aField.cells, ...bField.cells, ...quotCells);
-        trace = `除法逐位试商：${digitsText(bField.digits, bField.sign)} ÷ ${digitsText(aField.digits, aField.sign)}。商 ${digitsText(divided.quot, quotSign)} 写在被除数左边，余数 ${digitsText(divided.rem, remSign)} 留在 B 字段。`;
+        trace = `${digitsText(bField.digits, bField.sign)} ÷ ${digitsText(aField.digits, aField.sign)}。商 ${digitsText(divided.quot, quotSign)} 在 B 的左边，余数 ${digitsText(divided.rem, remSign)} 留在 B。`;
       } else {
         const product = mulDigits(aField.digits, bField.digits);
         const sign = resultSign(aField.sign === bField.sign ? 1 : -1, product);
@@ -1022,7 +1022,7 @@ export function stepDecimal(state: DecimalState): DecimalState {
         if (cells.some((addr) => addr < 0)) throw new MachineFault("积向左越过了地址 000");
         writeDigits(mem, cells, product, sign);
         touched.push(...cells);
-        trace = `乘法逐位做部分积：${digitsText(aField.digits, aField.sign)} × ${digitsText(bField.digits, bField.sign)} = ${digitsText(product, sign)}，个位仍在 ${pad3(bAddr)}。`;
+        trace = `${digitsText(aField.digits, aField.sign)} × ${digitsText(bField.digits, bField.sign)} = ${digitsText(product, sign)}。个位仍在 ${pad3(bAddr)}。`;
       }
     } else if (op === "#") {
       const [aAddr, bAddr] = takeAB();

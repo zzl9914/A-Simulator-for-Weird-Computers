@@ -135,34 +135,70 @@ Q       DEC +0
     expect(state.mem[program.labels.Q].sign).toBe(-1);
   });
 
-  it("BRD10 看最高位，BRD1 看个位", () => {
-    const high = `
+  it("BRD 按原机位号，而且只认 8", () => {
+    const goes = (source: string, label: "YES" | "NO") => {
+      const result = run(source);
+      expect(result.state.error).toBeUndefined();
+      expect(result.state.pc).toBe(result.program.labels[label]);
+      return result;
+    };
+    const first = goes(
+      `
         LDD N
         BRD10 YES, NO
 NO      STOP
 YES     STOP
 N       DEC +8000000000
-`;
-    const low = `
+`,
+      "YES",
+    );
+    expect(decodeInstruction(first.program.mem[first.program.entry + 1]).op).toBe(90);
+    goes(
+      `
+        LDD N
+        BRD1 YES, NO
+NO      STOP
+YES     STOP
+N       DEC +8
+`,
+      "YES",
+    );
+    const brd1 = assemble650(`
+        LDD N
+        BRD1 YES, NO
+YES     STOP
+NO      STOP
+N       DEC +8
+`);
+    expect(brd1.ok).toBe(true);
+    if (brd1.ok) expect(decodeInstruction(brd1.program.mem[brd1.program.entry + 1]).op).toBe(91);
+    goes(
+      `
         LDD N
         BRD1 YES, NO
 NO      STOP
 YES     STOP
 N       DEC +9
-`;
-    const highRun = run(high);
-    const lowRun = run(low);
-    expect(highRun.state.halted).toBe(true);
-    expect(highRun.state.pc).toBe(highRun.program.labels.YES);
-    expect(lowRun.state.pc).toBe(lowRun.program.labels.YES);
-    const missed = run(`
+`,
+      "NO",
+    );
+    goes(
+      `
         LDD N
-        BRD10 YES, NO
+        BRD9 YES, NO
 NO      STOP
 YES     STOP
-N       DEC +9
+N       DEC +0800000000
+`,
+      "YES",
+    );
+    const brd9 = assemble650(`
+        BRD9 YES, NO
+YES     STOP
+NO      STOP
 `);
-    expect(missed.state.pc).toBe(missed.program.labels.NO);
+    expect(brd9.ok).toBe(true);
+    if (brd9.ok) expect(decodeInstruction(brd9.program.mem[brd9.program.entry]).op).toBe(99);
   });
 
   it("下半加一会进位到上半", () => {

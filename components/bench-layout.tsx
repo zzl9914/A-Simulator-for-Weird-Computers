@@ -187,10 +187,10 @@ export function ProgramBar({
         ) : null}
       </div>
       <p className="mt-2 text-sm" aria-live="polite">
-        {custom ? "处于自定义" : `处于「${matched.title}」`}
+        {custom ? "自定义" : matched.title}
       </p>
       {matched ? <p className="text-sm text-muted-foreground">{blurb || matched.blurb}</p> : null}
-      <p className="font-mono text-xs text-muted-foreground">{custom ? "尚未写入文件" : path}</p>
+      <p className="font-mono text-xs text-muted-foreground">{custom ? "未保存" : path}</p>
       <dialog
         ref={dialog}
         className="m-auto w-[min(24rem,calc(100%-2rem))] rounded-md border bg-card p-4 text-card-foreground shadow-lg backdrop:bg-black/40 open:fixed open:top-1/2 open:left-1/2 open:-translate-x-1/2 open:-translate-y-1/2"
@@ -260,7 +260,7 @@ export function IdleBench({
           <Transport
             dirty={machine.dirty}
             blocked={machine.blocked}
-            status="还没装入。写好程序后点「装入」。"
+            status="还没装入。"
             onAssemble={machine.assemble}
             onStep={machine.step}
             onRun={machine.run}
@@ -274,8 +274,8 @@ export function IdleBench({
           <ErrorList errors={machine.errors} />
         </>
       }
-      console={<p className="text-sm text-muted-foreground">机器还是空的。写好程序后点「装入」，才能单步或运行。</p>}
-      memory={<p className="text-sm text-muted-foreground">内存还是空的。</p>}
+      console={<p className="text-sm text-muted-foreground">装入之后，这里显示寄存器和走步。</p>}
+      memory={<p className="text-sm text-muted-foreground">装入之后，这里显示内存。</p>}
     />
   );
 }

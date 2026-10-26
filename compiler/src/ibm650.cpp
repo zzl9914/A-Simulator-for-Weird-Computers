@@ -30,10 +30,10 @@ const OpSpec kOps[] = {
     {"RSU", 61, Kind::arith},  {"DIVRU", 64, Kind::arith}, {"RAL", 65, Kind::arith},
     {"RSL", 66, Kind::arith},  {"RAABL", 67, Kind::arith}, {"RSABL", 68, Kind::arith},
     {"LDD", 69, Kind::arith},  {"RD", 70, Kind::arith},   {"PCH", 71, Kind::arith},
-    {"TLU", 84, Kind::arith},  {"BRD10", 90, Kind::branch}, {"BRD9", 91, Kind::branch},
-    {"BRD8", 92, Kind::branch}, {"BRD7", 93, Kind::branch}, {"BRD6", 94, Kind::branch},
-    {"BRD5", 95, Kind::branch}, {"BRD4", 96, Kind::branch}, {"BRD3", 97, Kind::branch},
-    {"BRD2", 98, Kind::branch}, {"BRD1", 99, Kind::branch},
+    {"TLU", 84, Kind::arith},  {"BRD10", 90, Kind::branch}, {"BRD1", 91, Kind::branch},
+    {"BRD2", 92, Kind::branch}, {"BRD3", 93, Kind::branch}, {"BRD4", 94, Kind::branch},
+    {"BRD5", 95, Kind::branch}, {"BRD6", 96, Kind::branch}, {"BRD7", 97, Kind::branch},
+    {"BRD8", 98, Kind::branch}, {"BRD9", 99, Kind::branch},
 };
 
 const OpSpec* findOp(const std::string& name) {
